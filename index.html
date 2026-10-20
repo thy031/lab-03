@@ -1,0 +1,1099 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Greedy pair merge — Clustering for EDA</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=IBM+Plex+Mono:wght@400;500;600&family=Source+Sans+3:wght@400;500;600;700&display=swap">
+  <style>
+    :root {
+      --bg: #f3efe6; --bg-deep: #e7e0d2; --surface: #fffdf8; --surface2: #efe8db;
+      --ink: #1c2421; --muted: #5c675f; --accent: #0f6b5c; --accent-hover: #0b5347;
+      --accent-soft: #d7efe8; --line: #d5cdc0; --ok: #1f7a4c; --ok-bg: #e4f5eb;
+      --warn: #9a6b12; --warn-bg: #f8efd6; --err: #a33b3b; --err-bg: #f8e6e6;
+      --term-bg: #1c2421; --radius: 12px; --shadow: 0 10px 30px rgba(28,36,33,.06);
+      --font: "Source Sans 3", "Segoe UI", sans-serif; --display: "Fraunces", Georgia, serif;
+      --mono: "IBM Plex Mono", ui-monospace, monospace; --max: 980px;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0; font-family: var(--font); color: var(--ink); line-height: 1.65;
+      background: radial-gradient(circle at top left, rgba(15,107,92,.08), transparent 28%),
+                  linear-gradient(180deg, var(--bg), var(--bg-deep));
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-underline-offset: .15em; text-decoration: underline; }
+    .skip-link { position: absolute; left: -999px; top: .75rem; background: var(--accent); color: #fff; padding: .5rem .85rem; border-radius: 8px; z-index: 1000; }
+    .skip-link:focus { left: .75rem; }
+    .site-header { position: sticky; top: 0; z-index: 50; backdrop-filter: blur(10px); background: rgba(243,239,230,.92); border-bottom: 1px solid var(--line); padding: .85rem 1.25rem; }
+    .site-header-inner { max-width: var(--max); margin: 0 auto; display: flex; flex-wrap: wrap; gap: .5rem 1.25rem; align-items: baseline; justify-content: space-between; }
+    .brand { font-family: var(--display); font-size: 1.05rem; font-weight: 700; margin: 0; }
+    .brand a { color: inherit; text-decoration: none; }
+    .site-nav { display: flex; flex-wrap: wrap; gap: .15rem; }
+    .site-nav a { font-weight: 600; font-size: .9rem; color: var(--muted); padding: .3rem .55rem; border-radius: 6px; text-decoration: none; }
+    .site-nav a:hover, .site-nav a.is-active { color: var(--ink); background: var(--accent-soft); }
+    .site-search { position: relative; min-width: min(100%, 14rem); max-width: 18rem; flex: 1; }
+    .site-search-input { width: 100%; font: inherit; font-size: .9rem; padding: .45rem .7rem; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+    .site-search-results { position: absolute; top: calc(100% + .35rem); left: 0; right: 0; z-index: 60; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); max-height: 16rem; overflow: auto; }
+    .site-search-hit { display: block; padding: .5rem .75rem; color: inherit; text-decoration: none; border-bottom: 1px solid var(--line); }
+    .site-search-hit:hover { background: var(--accent-soft); }
+    .site-header-crumb { max-width: var(--max); margin: .4rem auto 0; font-size: .85rem; color: var(--muted); }
+    .site-header-crumb .here { color: var(--ink); font-weight: 600; }
+    .site-header-crumb nav > * + *::before { content: "/"; margin: 0 .4rem; color: var(--line); }
+    main { max-width: var(--max); margin: 0 auto; padding: 1.5rem 1.25rem 3rem; }
+    .eyebrow { font-family: var(--mono); font-size: .78rem; font-weight: 500; letter-spacing: .04em; text-transform: uppercase; color: var(--accent); margin-bottom: .35rem; }
+    h1 { font-family: var(--display); font-size: clamp(1.85rem, 4vw, 2.55rem); font-weight: 700; letter-spacing: -.02em; line-height: 1.15; margin: 0 0 .65rem; }
+    h2 { font-family: var(--display); font-size: 1.45rem; margin: 2rem 0 .7rem; }
+    h3 { font-size: 1.05rem; margin: 1.1rem 0 .4rem; }
+    .lead { font-size: 1.05rem; color: var(--muted); max-width: 40rem; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: .4rem; font-family: var(--font); font-weight: 600; font-size: .92rem; padding: .55rem 1rem; border-radius: 8px; border: 1px solid transparent; cursor: pointer; text-decoration: none; background: none; color: inherit; }
+    .btn:hover { text-decoration: none; }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover { background: var(--accent-hover); color: #fff; }
+    .btn-secondary { background: var(--surface); color: var(--ink); border-color: var(--line); }
+    .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+    .btn-ghost { background: transparent; color: var(--muted); border-color: var(--line); }
+    .btn-ghost:hover { color: var(--ink); }
+    .btn.is-done { background: var(--ok-bg); color: var(--ok); border-color: #b7dfc6; }
+    .btn-link {
+      background: none; border: 0; padding: 0; color: var(--accent);
+      font: inherit; font-weight: 600; cursor: pointer;
+      text-decoration: underline; text-underline-offset: .15em;
+    }
+    .match-col { display: grid; gap: .55rem; align-content: start; }
+    .clip-meta { display: flex; flex-wrap: wrap; gap: .4rem; margin: 0 0 1rem; }
+    .pill { display: inline-block; font-family: var(--mono); font-size: .72rem; font-weight: 600; letter-spacing: .02em; padding: .15rem .45rem; border-radius: 6px; background: var(--accent-soft); color: var(--accent); }
+    .pill-muted { background: var(--surface2); color: var(--muted); }
+    .clip-toolbar { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: 1.25rem; }
+    .video-panel { margin: 1.25rem 0 1.75rem; }
+    .video-wrap { background: var(--term-bg); border-radius: var(--radius); overflow: hidden; aspect-ratio: 16/9; display: grid; place-items: center; }
+    .video-wrap video { width: 100%; height: 100%; }
+    .lab-steps { margin: 0 0 1.5rem; padding-left: 1.25rem; }
+    .lab-steps li { margin: .35rem 0; }
+    table { width: 100%; border-collapse: collapse; font-size: .95rem; background: var(--surface); border-radius: 10px; overflow: hidden; }
+    th, td { text-align: left; padding: .45rem .6rem; border-bottom: 1px solid var(--line); }
+    th { color: var(--accent); font-weight: 600; }
+    .num { text-align: right; font-variant-numeric: tabular-nums; }
+    pre, .log, .term {
+      font-family: var(--mono); font-size: .82rem; background: var(--term-bg); color: #f3efe6;
+      border-radius: 10px; padding: .85rem 1rem; overflow: auto;
+    }
+    code { font-family: var(--mono); font-size: .9em; }
+    .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 1.1rem 1.2rem; box-shadow: var(--shadow); margin: 1rem 0; }
+    .split { display: grid; grid-template-columns: 1.05fr 1fr; gap: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+    .graph { padding: .6rem; background: #f8fafc; }
+    .explain { padding: 1rem 1.15rem; background: var(--surface); }
+    .explain ul { margin: .4rem 0 .8rem; padding-left: 1.15rem; }
+    .kicker { font-size: .7rem; letter-spacing: .08em; text-transform: uppercase; color: #99f6e4; padding: .55rem 1rem 0; background: var(--accent); }
+    .panel-h { margin: 0; padding: .35rem 1rem .55rem; background: var(--accent); color: #fff; font-size: 1.05rem; }
+    .meta { font-size: .78rem; color: #ccfbf1; padding: 0 1rem .55rem; background: var(--accent); }
+    .controls { display: flex; flex-wrap: wrap; gap: .55rem; align-items: end; margin: .75rem 0; }
+    .controls label { display: grid; gap: .2rem; font-size: .85rem; font-weight: 600; }
+    .controls input { font: inherit; padding: .4rem .55rem; border: 1px solid var(--line); border-radius: 8px; width: 5.5rem; }
+    .quiz-section { margin-top: 2rem; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 1.25rem; box-shadow: var(--shadow); }
+    .quiz-item { background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 1rem 1.1rem; margin: .9rem 0; }
+    .quiz-item p.prompt { margin: 0 0 .75rem; font-weight: 700; }
+    .quiz-choices { display: grid; gap: .45rem; margin-bottom: .85rem; }
+    .quiz-choices label { display: flex; gap: .65rem; align-items: flex-start; padding: .7rem .8rem; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); cursor: pointer; }
+    .quiz-choices label:hover, .quiz-choices label:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+    .quiz-result { margin-top: .75rem; padding: .75rem .85rem; border-radius: 10px; font-size: .92rem; display: none; }
+    .quiz-result.show { display: block; }
+    .quiz-result.ok { background: var(--ok-bg); border: 1px solid #b7dfc6; color: var(--ok); }
+    .quiz-result.bad { background: var(--err-bg); border: 1px solid #ebc0c0; color: var(--err); }
+    .quiz-summary { margin-top: 1rem; padding: 1rem; background: var(--accent-soft); border-radius: 10px; display: none; }
+    .quiz-summary.show { display: block; }
+    .site-footer { max-width: var(--max); margin: 0 auto; padding: 1.5rem 1.25rem 2.5rem; border-top: 1px solid var(--line); color: var(--muted); font-size: .88rem; }
+    .toc { display: flex; flex-wrap: wrap; gap: .4rem; margin: 0 0 1.25rem; }
+    .toc a { font-size: .82rem; background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: .2rem .65rem; text-decoration: none; color: var(--muted); }
+    .check { display: grid; gap: .4rem; }
+    .check label { display: flex; gap: .55rem; align-items: flex-start; }
+    .page-tabs { display: flex; gap: .4rem; margin: 0 0 1.25rem; padding: .25rem; background: var(--surface2); border-radius: 12px; max-width: 28rem; }
+    .page-tabs button { flex: 1; border: 0; background: transparent; font: inherit; font-weight: 700; padding: .55rem .8rem; border-radius: 9px; cursor: pointer; color: var(--muted); }
+    .page-tabs button[aria-selected="true"] { background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
+    .match { display: grid; grid-template-columns: 1fr 1fr; gap: .55rem .75rem; }
+    .match button {
+      text-align: left; font: inherit; cursor: pointer; padding: .7rem .8rem; border-radius: 10px;
+      border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+    }
+    .match button:hover { border-color: var(--accent); }
+    .match button.picked { border-color: var(--accent); background: var(--accent-soft); }
+    .match button.ok { border-color: #b7dfc6; background: var(--ok-bg); color: var(--ok); }
+    .match button.bad { border-color: #ebc0c0; background: var(--err-bg); color: var(--err); }
+    .match button:disabled { cursor: default; }
+    .choice-row { display: flex; flex-wrap: wrap; gap: .5rem; margin: .5rem 0 1rem; }
+    .status-line { min-height: 1.4em; font-size: .92rem; font-weight: 600; }
+    .status-line.ok { color: var(--ok); }
+    .status-line.bad { color: var(--err); }
+    .edge { stroke: #64748b; stroke-width: 2.4; }
+    .edge.hot { stroke: #c2410c; stroke-width: 3.4; }
+    .edge.dim { stroke: #cbd5e1; }
+    .edge.cut, .edge.drawn { stroke: #c2410c; stroke-width: 3.6; stroke-dasharray: none; }
+    .edge.ghost { stroke: #cbd5e1; stroke-width: 2; stroke-dasharray: 5 4; }
+    .edge.ok-cut { stroke: #1f7a4c; stroke-width: 3.6; stroke-dasharray: none; }
+    .edge.bad-cut { stroke: #a33b3b; stroke-width: 3.6; stroke-dasharray: none; }
+    .edge.missed { stroke: #9a6b12; stroke-width: 3; stroke-dasharray: 4 3; }
+    .hitbar { stroke: transparent; stroke-width: 18; cursor: pointer; }
+    .graph svg { touch-action: none; }
+    .graph.draw { cursor: pointer; }
+    .node-pick, circle.pick { stroke: #0f6b5c; stroke-width: 4; }
+    .nlab { font-size: 10px; fill: #475569; font-family: var(--font); }
+    .lbl { font-size: 12px; fill: #475569; font-family: var(--font); }
+    .n { font-size: 14px; font-weight: 700; fill: #fff; font-family: var(--font); }
+    @media (max-width: 860px) {
+      .split, .match { grid-template-columns: 1fr; }
+      .clip-toolbar .btn { flex: 1 1 auto; }
+    }
+    .walk-btn.is-on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+    .impl-step { margin: 1rem 0; }
+    .impl-step h3 { margin-top: 0; }
+    .cmd { position: relative; }
+    .cmd pre { margin: .4rem 0 0; white-space: pre-wrap; }
+    .cmd .btn { position: absolute; top: .45rem; right: .45rem; }
+    .gold { background: var(--ok-bg); border: 1px solid #b7dfc6; color: var(--ok); border-radius: 10px; padding: .75rem .9rem; font-family: var(--mono); font-size: .9rem; }
+    .page-tabs { max-width: 36rem; }
+    .mission-head { display: flex; flex-wrap: wrap; gap: .45rem; align-items: center; margin-bottom: .4rem; }
+    .xp { font-family: var(--mono); font-size: .85rem; color: var(--accent); font-weight: 700; }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="site-header-inner">
+      <p class="brand"><a href="#main">EDA Algorithms Platform</a></p>
+      <nav class="site-nav" aria-label="Site">
+        <a href="#lab" data-tab-link="lab" class="is-active">Lab</a>
+        <a href="#game" data-tab-link="game">Game</a>
+        <a href="#notes" data-tab-link="notes">Course notes</a>
+        <a href="#quiz" data-tab-link="lab">Quiz</a>
+      </nav>
+      <div class="site-search" data-site-search>
+        <label class="site-search-label" for="site-search-input" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Search</label>
+        <input id="site-search-input" class="site-search-input" type="search" placeholder="Courses, labs, tools…" autocomplete="off">
+        <div class="site-search-results" hidden role="listbox"></div>
+      </div>
+    </div>
+    <div class="site-header-crumb">
+      <nav aria-label="Breadcrumb">
+        <a href="#main">Home</a>
+        <a href="#main">Courses</a>
+        <a href="#main">learn_clustering</a>
+        <span class="here">Lab 03</span>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <div class="eyebrow">Clustering for EDA · Guided lab</div>
+    <section class="hero">
+      <h1>Greedy pair merge</h1>
+      <p class="lead">Heaviest-edge coarsening: protect heavy nets, cut weak bridges, never undo. </p>
+      <div class="clip-meta">
+        <span class="pill">Lab 03 of 14</span>
+        <span class="pill pill-muted">Lab</span>
+        <span class="pill pill-muted" id="done-pill" hidden>Done</span>
+      </div>
+      <nav class="clip-toolbar" aria-label="Lab actions">
+        <button type="button" class="btn btn-secondary" data-tab-link="game">Game</button>
+        <button type="button" class="btn btn-secondary" data-tab-link="notes">Course notes</button>
+        <a class="btn btn-primary" href="#tool" data-tab-link="lab">Open tool</a>
+        <a class="btn btn-secondary" href="https://cdn.jsdelivr.net/gh/SJTU-YONGFU-RESEARCH-GRP/eda-learning@main/courses/learn_clustering/module01-03-greedy-pair-merge/slides.pptx">Download PPTX</a>
+        <a class="btn btn-secondary" href="https://cdn.jsdelivr.net/gh/SJTU-YONGFU-RESEARCH-GRP/eda-learning@main/courses/learn_clustering/module01-03-greedy-pair-merge/slides.pdf">Download PDF</a>
+        <a class="btn btn-ghost" href="#quiz" data-tab-link="lab">Jump to quiz</a>
+        <a class="btn btn-ghost" href="https://github.com/SJTU-YONGFU-RESEARCH-GRP/eda-learning/tree/main/courses/learn_clustering/module01-03-greedy-pair-merge" rel="noopener">Module on GitHub</a>
+        <button type="button" class="btn btn-secondary" id="mark-done">Mark lab done</button>
+      </nav>
+    </section>
+
+    <div class="page-tabs" role="tablist" aria-label="Lab, game, or course notes">
+      <button type="button" role="tab" id="tab-lab" aria-controls="panel-lab" aria-selected="true" data-tab="lab">Lab</button>
+      <button type="button" role="tab" id="tab-game" aria-controls="panel-game" aria-selected="false" data-tab="game">Game</button>
+      <button type="button" role="tab" id="tab-notes" aria-controls="panel-notes" aria-selected="false" data-tab="notes">Course notes</button>
+    </div>
+
+    <div id="panel-lab" role="tabpanel" aria-labelledby="tab-lab">
+    <nav class="toc" aria-label="On this lab">
+      <a href="#clip">Video</a>
+      <a href="#steps">What to do</a>
+      <a href="#tool">Tool</a>
+      <a href="#checklist">Checklist</a>
+      <a href="#quiz">Quiz</a>
+    </nav>
+
+    <section class="video-panel" id="clip" aria-label="Lab video">
+      <div class="video-wrap">
+        <video controls preload="metadata" playsinline>
+          <source src="media/video.mp4" type="video/mp4">
+          <source src="https://cdn.jsdelivr.net/gh/SJTU-YONGFU-RESEARCH-GRP/eda-learning@main/courses/learn_clustering/module01-03-greedy-pair-merge/video.mp4" type="video/mp4">
+        </video>
+      </div>
+    </section>
+
+    <h2 id="steps">What to do</h2>
+    <ol class="lab-steps">
+      <li>Watch the clip (from the course repo) or skim the slides in <button type="button" class="btn-link" data-tab-link="notes">Course notes</button>.</li>
+      <li>Open the <button type="button" class="btn-link" data-tab-link="game">Game</button> tab for Play the logic and real-life missions, then <a href="#tool">run the student</a> here.</li>
+      <li>Optional: practice Track A from Course notes — re-implement contraction with the same lexicographic tie-break.</li>
+      <li>Mark the lab done when you are satisfied (saved in this browser only).</li>
+    </ol>
+
+    <h2 id="tool">Browser tool</h2>
+    <p class="lead">Step heaviest-edge merges down to K clusters and watch cutsize. Load the starter, try the K and capacity presets, then work the challenges.</p>
+    <div class="controls">
+      <button type="button" class="btn btn-primary" id="load-starter">Load starter</button>
+      <label>K <input id="k-in" type="number" min="1" value="2"></label>
+      <label>Capacity <input id="cap-in" type="number" min="1" placeholder="none"></label>
+      <button type="button" class="btn btn-secondary" data-preset="k2">K=2</button>
+      <button type="button" class="btn btn-secondary" data-preset="k3">K=3</button>
+      <button type="button" class="btn btn-secondary" data-preset="c2">capacity=2</button>
+      <button type="button" class="btn btn-secondary" data-preset="c3">capacity=3</button>
+      <button type="button" class="btn btn-primary" id="run-tool">Run greedy merge</button>
+      <button type="button" class="btn btn-ghost" id="step-tool">Step</button>
+    </div>
+    <div class="split">
+      <div class="graph" id="tool-graph"></div>
+      <div class="explain">
+        <h3 style="margin-top:0">Run log</h3>
+        <pre class="log" id="tool-log" style="background:#f1f5f9;color:#0f172a;min-height:12rem">Load the starter, then run.</pre>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Challenges — tap an answer</h3>
+      <p><strong>C1.</strong> After merging A–B, two pairs sit at weight 5. Which merge fires?</p>
+      <div class="choice-row">
+        <button type="button" class="btn btn-secondary" data-chal="c1" data-ok="1">AB–C, lexicographic labels</button>
+        <button type="button" class="btn btn-secondary" data-chal="c1" data-ok="0">D–E, because it is an original edge</button>
+      </div>
+      <p class="status-line" id="chal-c1"></p>
+      <p><strong>C2.</strong> Capacity=2 and K=2. Why stop with three clusters?</p>
+      <div class="choice-row">
+        <button type="button" class="btn btn-secondary" data-chal="c2" data-ok="0">Greedy undoes A–B and still reaches K</button>
+        <button type="button" class="btn btn-secondary" data-chal="c2" data-ok="1">{A,B,C} is illegal; C has no legal partner</button>
+      </div>
+      <p class="status-line" id="chal-c2"></p>
+      <p><strong>C3.</strong> Unconstrained golden cut edges?</p>
+      <div class="choice-row">
+        <button type="button" class="btn btn-secondary" data-chal="c3" data-ok="1">C–D (2) and C–E (1)</button>
+        <button type="button" class="btn btn-secondary" data-chal="c3" data-ok="0">A–B and D–E</button>
+      </div>
+      <p class="status-line" id="chal-c3"></p>
+    </div>
+
+    <h2 id="checklist">Your turn / exit ticket</h2>
+    <div class="card check" id="checklist">
+      <label><input type="checkbox"> Implement greedy pair merge end to end.</label>
+      <label><input type="checkbox"> Hit a chosen K and record cutsize at every merge.</label>
+      <label><input type="checkbox"> Match unconstrained golden <code>ABC|DE</code> / 3.</label>
+      <label><input type="checkbox"> Report the capacity=2 stranded result <code>AB|C|DE</code> / 8.</label>
+      <label><input type="checkbox"> Complete the checklist and quiz.</label>
+    </div>
+    <section id="quiz" class="quiz-section">
+      <h2>Greedy merge check</h2>
+      <p class="lead">Five logic questions from the module PDF walkthrough on <code>tiny_graph</code> (singletons → A–B → absorb C → D–E → cutsize 3, then the capacity fork). Check each answer as you go. Explanations appear after you submit.</p>
+      <div id="quiz-root"></div>
+      <div class="quiz-summary" data-role="summary"></div>
+      <div class="quiz-actions"><button type="button" class="btn btn-primary" id="score-quiz">Score quiz</button></div>
+    </section>
+    </div>
+
+    <div id="panel-game" role="tabpanel" aria-labelledby="tab-game" hidden>
+    <nav class="toc" aria-label="On this game">
+      <a href="#games">Play the logic</a>
+      <a href="#missions">Real-life missions</a>
+    </nav>
+    <p class="lead">Match the two logic boards, then draw the remaining cut on each real-life graph. Click two nodes (or click a corridor) to draw a line; click again to erase. Check against the same <code>greedy_pair_merge</code> code.</p>
+    <p class="xp" id="xp-line">Missions solved: 0 / 3</p>
+
+    <h2 id="games">Play the logic</h2>
+    <div class="card">
+      <h3>Match: merge step → clusters and cutsize</h3>
+      <p>Click a step on the left, then the matching result on the right.</p>
+      <div class="match" id="match-steps"></div>
+      <p class="status-line" id="match-steps-status"></p>
+      <button type="button" class="btn btn-ghost" data-reset-match="steps">Reset this game</button>
+    </div>
+    <div class="card">
+      <h3>Match: ranking term → rule</h3>
+      <p>Click a term, then its definition.</p>
+      <div class="match" id="match-rules"></div>
+      <p class="status-line" id="match-rules-status"></p>
+      <button type="button" class="btn btn-ghost" data-reset-match="rules">Reset this game</button>
+    </div>
+
+    <h2 id="missions">Real-life missions</h2>
+    <p>Draw every edge that <strong>still crosses</strong> after greedy (the cut). Leave protected heavy corridors undrawn. Then press <strong>Check drawing</strong>.</p>
+    <div id="mission-root"></div>
+    </div>
+
+    <div id="panel-notes" role="tabpanel" aria-labelledby="tab-notes" hidden>
+    <nav class="toc" aria-label="Course notes">
+      <a href="#rules">Rules</a>
+      <a href="#walk">Walkthrough</a>
+      <a href="#capacity">Capacity</a>
+      <a href="#implement">Implement</a>
+      <a href="#pitfalls">Pitfalls</a>
+    </nav>
+    <h2 id="rules">What the student must do</h2>
+    <p>Start from <strong>singletons</strong>. Repeatedly contract the highest-affinity legal pair into a supernode. Stop at target <strong>K</strong>, or when no legal positive-weight pair remains. Report the partition and its <strong>cutsize</strong>.</p>
+    <p>There is no undo. Heavy nets should disappear from the cut; weak bridges may stay cut. Capacity (max cluster size) is optional, but when it is on it can block the unconstrained path.</p>
+    <div class="card">
+      <h3>Ranking rules (lock these)</h3>
+      <table>
+        <tr><th>Signal</th><th>Rule</th></tr>
+        <tr><td>Affinity</td><td>Sum of current edge weight between two clusters (parallels add)</td></tr>
+        <tr><td>Illegal</td><td>Skip if affinity ≤ 0, or if <code>|A|+|B|</code> exceeds capacity</td></tr>
+        <tr><td>Pick</td><td>Maximum affinity</td></tr>
+        <tr><td>Tie-break</td><td>Lexicographic cluster labels (sorted member names joined)</td></tr>
+        <tr><td>Cutsize</td><td>Sum of weights with endpoints in different clusters</td></tr>
+      </table>
+      <p>On <code>tiny_graph</code>, A–B vs D–E are both weight 5; A–B wins because <code>A &lt; D</code>. After that, AB–C vs D–E are both 5; <code>AB &lt; D</code> so C is absorbed first.</p>
+    </div>
+    <table>
+      <tr><th>Edge</th><th class="num">Weight</th></tr>
+      <tr><td>A–B</td><td class="num">5</td></tr>
+      <tr><td>B–C</td><td class="num">4</td></tr>
+      <tr><td>C–D</td><td class="num">2</td></tr>
+      <tr><td>D–E</td><td class="num">5</td></tr>
+      <tr><td>A–C</td><td class="num">1</td></tr>
+      <tr><td>C–E</td><td class="num">1</td></tr>
+      <tr><td><strong>All separate cutsize</strong></td><td class="num"><strong>18</strong></td></tr>
+    </table>
+
+    <h2 id="walk">Walkthrough — every node starts alone</h2>
+    <p class="lead">Use the step buttons. Contracting affinity <code>w</code> drops cutsize by exactly <code>w</code>.</p>
+    <div class="controls">
+      <button type="button" class="btn btn-secondary" data-walk="0">1 · Singletons</button>
+      <button type="button" class="btn btn-secondary" data-walk="1">2 · Merge A–B</button>
+      <button type="button" class="btn btn-secondary" data-walk="2">3 · Absorb C</button>
+      <button type="button" class="btn btn-secondary" data-walk="3">4 · Merge D–E</button>
+      <button type="button" class="btn btn-secondary" data-walk="4">5 · Cutsize 3</button>
+    </div>
+    <div id="walk-panel"></div>
+    <table>
+      <tr><th>Step</th><th>Event</th><th class="num">Affinity</th><th>Clusters</th><th class="num">Cutsize</th></tr>
+      <tr><td>0</td><td>singletons</td><td class="num">—</td><td>A | B | C | D | E</td><td class="num">18</td></tr>
+      <tr><td>1</td><td>merge A–B</td><td class="num">5</td><td>AB | C | D | E</td><td class="num">13</td></tr>
+      <tr><td>2</td><td>merge AB–C</td><td class="num">5</td><td>ABC | D | E</td><td class="num">8</td></tr>
+      <tr><td>3</td><td>merge D–E</td><td class="num">5</td><td>ABC | DE</td><td class="num">3</td></tr>
+    </table>
+    <p><strong>Why step 2 is AB–C, not D–E:</strong> both pairs have affinity 5. Labels <code>AB</code>/<code>C</code> vs <code>D</code>/<code>E</code>; <code>AB &lt; D</code>, so AB–C wins. Final cut = C–D (2) + C–E (1) = <strong>3</strong>. Golden: <code>ABC|DE</code>.</p>
+
+    <h2 id="capacity">Capacity = 2 forks the path</h2>
+    <p>Same graph, same K=2, but a cluster may hold at most two cells. Size-3 {A,B,C} is illegal, so after A–B the 5-edge D–E fires. Then C has no legal partner and the run <strong>stops at three clusters</strong>.</p>
+    <table>
+      <tr><th>Preset</th><th>Parts</th><th class="num">Cutsize</th><th>Teaching point</th></tr>
+      <tr><td><code>--k 2</code></td><td>ABC|DE</td><td class="num">3</td><td>unconstrained golden</td></tr>
+      <tr><td><code>--k 3</code></td><td>ABC|D|E</td><td class="num">8</td><td>stop before D–E</td></tr>
+      <tr><td><code>--k 2 --capacity 2</code></td><td>AB|C|DE</td><td class="num">8</td><td>cap blocks the golden community</td></tr>
+      <tr><td><code>--k 2 --capacity 3</code></td><td>ABC|DE</td><td class="num">3</td><td>cap still allows {A,B,C}</td></tr>
+    </table>
+
+    <h2 id="implement">Implement track</h2>
+    <p class="lead">This is Track A: write the code yourself. The commands below are only the reference check. You can also run the same goldens with buttons (they switch to the Lab tool).</p>
+
+    <div class="card impl-step">
+      <h3>1. What “done” looks like</h3>
+      <p>Run the reference solver down to two clusters. You should land on <strong>A–B–C versus D–E</strong> with cutsize <strong>three</strong>.</p>
+      <p class="gold">parts=ABC|DE  cutsize=3</p>
+      <p>Keep a deterministic lexicographic tie-break so golden tests stay reproducible. Do not invent a merge to force K when capacity strands the run.</p>
+    </div>
+
+    <div class="card impl-step">
+      <h3>2. What you re-implement</h3>
+      <ol class="lab-steps">
+        <li>Cluster affinity = sum of crossing edge weights (parallels add).</li>
+        <li>Capacity filter = skip a pair if <code>|A|+|B|</code> exceeds the cap, <em>before</em> ranking.</li>
+        <li>Tie-break = lexicographic cluster labels (sorted member names joined).</li>
+        <li>Contraction + a cutsize log after every merge.</li>
+      </ol>
+    </div>
+
+    <div class="card impl-step">
+      <h3>3. Check the reference (from the folder that contains <code>examples/</code>)</h3>
+      <p>Confirm you are in the right tree, then run the three goldens.</p>
+      <div class="cmd">
+        <button type="button" class="btn btn-ghost" data-copy="pwd
+ls examples
+export PYTHONPATH=../common
+python3 ../common/solvers.py examples/tiny_graph.json --k 2">Copy</button>
+        <pre><code>pwd
+ls examples
+export PYTHONPATH=../common
+python3 ../common/solvers.py examples/tiny_graph.json --k 2</code></pre>
+      </div>
+      <p>From this repo root instead:</p>
+      <div class="cmd">
+        <button type="button" class="btn btn-ghost" data-copy="python3 common/solvers.py examples/tiny_graph.json --k 2">Copy</button>
+        <pre><code>python3 common/solvers.py examples/tiny_graph.json --k 2</code></pre>
+      </div>
+    </div>
+
+    <div class="card impl-step">
+      <h3>4. Goldens to match</h3>
+      <p>Each row is one check. Use Copy for the shell, or <strong>Run in lab tool</strong> to see the same partition on this page.</p>
+      <table>
+        <tr><th>Command</th><th>You should see</th><th></th></tr>
+        <tr>
+          <td><code>python3 common/solvers.py examples/tiny_graph.json --k 2</code></td>
+          <td><code>ABC|DE</code> cut 3</td>
+          <td><button type="button" class="btn btn-secondary" data-run-preset="k2">Run in lab tool</button></td>
+        </tr>
+        <tr>
+          <td><code>python3 common/solvers.py examples/tiny_graph.json --k 3</code></td>
+          <td><code>ABC|D|E</code> cut 8</td>
+          <td><button type="button" class="btn btn-secondary" data-run-preset="k3">Run in lab tool</button></td>
+        </tr>
+        <tr>
+          <td><code>... --k 2 --capacity 2</code></td>
+          <td><code>AB|C|DE</code> cut 8 (stranded)</td>
+          <td><button type="button" class="btn btn-secondary" data-run-preset="c2">Run in lab tool</button></td>
+        </tr>
+      </table>
+    </div>
+
+    <h2 id="pitfalls">Pitfalls to watch</h2>
+    <ul>
+      <li>Greedy is myopic: a great first merge can strand you with a bad global cut. Later labs repair seeds with refinement (FM / KL), not by undoing greedy.</li>
+      <li>Watch illegal merges that violate a size cap — test capacity <em>before</em> ranking, not after.</li>
+      <li>Updating affinities incorrectly after contraction creates silent wrong clusters until <strong>goldens fail</strong>.</li>
+      <li>A missing lexicographic tie-break makes AB–C versus D–E a coin flip, so <code>tiny_graph</code> tests flake.</li>
+      <li>Capacity can leave isolated cells. Report actual <code>|parts|</code> and cutsize.</li>
+    </ul>
+    <p class="lead">90-minute flow: rules (0–10) → walkthrough (10–25) → capacity fork (25–35) → browser tool (35–55) → implement (55–80) → quiz (80–90).</p>
+    <p class="lead" style="margin-top:1.5rem">
+      Media source:
+      <a href="https://github.com/SJTU-YONGFU-RESEARCH-GRP/eda-learning/tree/main/courses/learn_clustering/module01-03-greedy-pair-merge" rel="noopener"><code>SJTU-YONGFU-RESEARCH-GRP/eda-learning/module01-03-greedy-pair-merge/</code></a>
+      · local plan <code>lab3plan.md</code>
+    </p>
+    </div>
+  </main>
+  <footer class="site-footer">
+    Course map · progress saved in this browser only.
+  </footer>
+
+<script>
+const GRAPH = {
+  nodes: ["A","B","C","D","E"],
+  edges: [
+    ["A","B",5],["A","C",1],["B","C",4],["C","D",2],["C","E",1],["D","E",5]
+  ]
+};
+const POS = { A:[90,70], B:[250,58], C:[170,150], E:[90,250], D:[270,240] };
+const FILL = { A:"#166534", B:"#14532d", C:"#c2410c", D:"#1d4ed8", E:"#9f1239" };
+
+function key(u,v){ return u < v ? u+"|"+v : v+"|"+u; }
+function weightMap() {
+  const w = {};
+  for (const [u,v,wt] of GRAPH.edges) w[key(u,v)] = (w[key(u,v)]||0) + wt;
+  return w;
+}
+function label(members){ return [...members].sort().join(""); }
+function cutsize(parts, w) {
+  const owner = {};
+  parts.forEach((p,i) => p.forEach(n => owner[n]=i));
+  let t = 0;
+  for (const k of Object.keys(w)) {
+    const [u,v] = k.split("|");
+    if (owner[u] !== owner[v]) t += w[k];
+  }
+  return t;
+}
+function affinity(a,b,w) {
+  let s = 0;
+  for (const u of a) for (const v of b) s += w[key(u,v)] || 0;
+  return s;
+}
+function greedy(k, capacity, graph) {
+  const G = graph || GRAPH;
+  const w = {};
+  for (const [u,v,wt] of G.edges) w[key(u,v)] = (w[key(u,v)]||0) + wt;
+  let parts = G.nodes.map(n => [n]);
+  const log = [{ step:0, event:"singletons", clusters: parts.map(label), cutsize: cutsize(parts,w) }];
+  while (parts.length > k) {
+    let best = null;
+    for (let i=0;i<parts.length;i++) {
+      for (let j=i+1;j<parts.length;j++) {
+        if (capacity != null && parts[i].length + parts[j].length > capacity) continue;
+        const aff = affinity(parts[i], parts[j], w);
+        if (aff <= 0) continue;
+        let li = label(parts[i]), lj = label(parts[j]);
+        if (li > lj) [li,lj] = [lj,li];
+        const cand = [-aff, li, lj, i, j];
+        if (!best || cand < best) best = cand;
+      }
+    }
+    if (!best) break;
+    const i = best[3], j = best[4];
+    const a = parts[i], b = parts[j];
+    const aff = affinity(a,b,w);
+    const merged = [...a,...b].sort();
+    parts = parts.filter((_,t) => t!==i && t!==j).concat([merged]);
+    parts.sort((x,y) => label(x).localeCompare(label(y)));
+    log.push({ step: log.length, event:"merge", pair: label(a)+"-"+label(b), weight: aff, clusters: parts.map(label), cutsize: cutsize(parts,w), parts: parts.map(p=>[...p]) });
+  }
+  return { k, capacity, parts: parts.map(label), cutsize: cutsize(parts,w), log, lastParts: parts };
+}
+
+function node(id, clusterColor) {
+  const [x,y] = POS[id];
+  const c = clusterColor || FILL[id];
+  return `<circle cx="${x}" cy="${y}" r="18" fill="${c}"/><text class="n" x="${x}" y="${y+5}" text-anchor="middle">${id}</text>`;
+}
+function edge(a,b,w,cls) {
+  const [x1,y1]=POS[a], [x2,y2]=POS[b];
+  return `<line class="edge ${cls||""}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>
+    <text class="lbl" x="${(x1+x2)/2+8}" y="${(y1+y2)/2-6}">${w}</text>`;
+}
+function svg(inner) {
+  return `<svg viewBox="0 0 360 310" width="100%" height="280" role="img" aria-label="tiny_graph">${inner}</svg>`;
+}
+function draw(hot=[], dim=false, cut=[]) {
+  const cls = (u,v) => {
+    const k = key(u,v);
+    if (hot.some(([a,b]) => key(a,b)===k)) return "hot";
+    if (cut.some(([a,b]) => key(a,b)===k)) return "cut";
+    if (dim) return "dim";
+    return "";
+  };
+  return svg(
+    GRAPH.edges.map(([u,v,w]) => edge(u,v,w,cls(u,v))).join("") +
+    GRAPH.nodes.map(n => node(n, hot.flat().includes(n) ? "#c2410c" : FILL[n])).join("")
+  );
+}
+
+const WALKS = [
+  { title:"Every node starts alone", meta:"Step 1 / 5 · singletons",
+    html:"Agglomerative clustering begins with K=5 singletons. We repeatedly merge the highest-affinity legal pair until we hit target K.<ul><li>Target here: K=2</li><li>No capacity limit in the reference run</li><li>Priority = current edge-weight ranking</li></ul>",
+    log:"K=5 → aim for K=2\ncutsize (all separate): 18", graph: () => draw() },
+  { title:"Merge 1: contract A–B", meta:"Step 2 / 5 · merge-ab",
+    html:"Heaviest edge is A–B at weight 5, so they merge first into a supernode. That protects the strongest connection immediately.<ul><li>Pick top legal pair on current graph</li><li>Contract into a cluster</li><li>Recompute edges to the new supernode</li></ul>",
+    log:"merge: A–B @ 5 → C0\nclusters: AB | C | D | E\ncutsize: 13", graph: () => draw([["A","B"]]) },
+  { title:"Merge 2: absorb C into AB", meta:"Step 3 / 5 · absorb-c",
+    html:"After contraction, C connects to {A,B} with combined weight 5. That <strong>ties</strong> D–E; lexicographic labels merge C next, forming {A,B,C}.<ul><li>Supernode edges sum parallel connections (AC 1 + BC 4)</li><li>C joins the A–B community</li><li>Still two merges left toward K=2</li></ul>",
+    log:"merge: C–AB @ 5\nclusters: ABC | D | E\ncutsize now: 8", graph: () => draw([["A","C"],["B","C"]]) },
+  { title:"Merge 3: contract D–E", meta:"Step 4 / 5 · merge-de",
+    html:"Last merge joins D–E at weight 5. We now have exactly two clusters: {A,B,C} versus {D,E}.<ul><li>Reached target K=2</li><li>Heavy edges sit inside clusters</li><li>Only weak bridge edges remain cut</li></ul>",
+    log:"merge: D–E @ 5\nclusters: ABC | DE\ncutsize: 3", graph: () => draw([["D","E"]], true) },
+  { title:"Result: cutsize 3", meta:"Step 5 / 5 · final-cut",
+    html:"Cut edges are C–D (2) and C–E (1). Greedy locked in the natural communities without backtracking — fast, but capacity rules can block this path.<ul><li>Golden: ABC|DE, cut=3</li><li>Capacity=2 would forbid size-3 {A,B,C}</li><li>Refinement labs repair worse seeds later</li></ul>",
+    log:"Final parts: ABC|DE\ncutsize = 2+1 = 3", graph: () => draw([], true, [["C","D"],["C","E"]]) }
+];
+
+function renderWalk(i) {
+  const s = WALKS[i];
+  document.getElementById("walk-panel").innerHTML = `
+    <div class="kicker">Greedy pair merge</div>
+    <h3 class="panel-h">${s.title}</h3>
+    <div class="meta">${s.meta} · module01-03-greedy-pair-merge</div>
+    <div class="split">
+      <div class="graph">${s.graph()}</div>
+      <div class="explain"><h4>Explanation</h4><p>${s.html}</p><div class="log" style="background:#f1f5f9;color:#0f172a">${s.log.replaceAll("\n","<br>")}</div></div>
+    </div>`;
+}
+document.querySelectorAll("[data-walk]").forEach(b => b.onclick = () => {
+  document.querySelectorAll("[data-walk]").forEach(x => x.classList.toggle("is-on", x === b));
+  renderWalk(+b.dataset.walk);
+});
+document.querySelector("[data-walk='0']")?.classList.add("is-on");
+renderWalk(0);
+
+let toolState = null, toolStep = 0;
+function clusterColors(parts) {
+  const pal = ["#166534","#1d4ed8","#c2410c","#7c3aed","#0f766e"];
+  const map = {};
+  parts.forEach((p,i) => p.forEach(n => map[n] = pal[i % pal.length]));
+  return map;
+}
+function drawParts(parts) {
+  const colors = clusterColors(parts);
+  const owner = {};
+  parts.forEach((p,i) => p.forEach(n => owner[n]=i));
+  return svg(
+    GRAPH.edges.map(([u,v,w]) => edge(u,v,w, owner[u]===owner[v] ? "dim" : "cut")).join("") +
+    GRAPH.nodes.map(n => node(n, colors[n])).join("")
+  );
+}
+function currentK(){ return Math.max(1, parseInt(document.getElementById("k-in").value,10) || 2); }
+function currentCap(){
+  const v = document.getElementById("cap-in").value;
+  return v === "" ? null : Math.max(1, parseInt(v,10));
+}
+function showTool(upto) {
+  if (!toolState) return;
+  const log = toolState.log.slice(0, upto+1);
+  const last = log[log.length-1];
+  document.getElementById("tool-graph").innerHTML = drawParts(last.parts);
+  document.getElementById("tool-log").textContent = log.map(e => {
+    if (e.event==="singletons") return `step 0  singletons  ${e.clusters.join(" | ")}  cut=${e.cutsize}`;
+    return `step ${e.step}  merge ${e.pair} @ ${e.weight}  ${e.clusters.join(" | ")}  cut=${e.cutsize}`;
+  }).join("\n") + `\n\nparts=${last.clusters.join("|")}  cutsize=${last.cutsize}`;
+}
+function loadStarter() {
+  document.getElementById("tool-graph").innerHTML = draw();
+  document.getElementById("tool-log").textContent = "Starter tiny_graph loaded.\nNodes A–E, cutsize 18 if all separate.\nSet K / capacity, then Run or Step.";
+  toolState = null; toolStep = 0;
+}
+function fixLogParts(result) {
+  result.log.forEach(e => { e.parts = e.clusters.map(lab => [...lab]); });
+  return result;
+}
+
+document.getElementById("load-starter").onclick = loadStarter;
+document.getElementById("run-tool").onclick = () => {
+  toolState = fixLogParts(greedy(currentK(), currentCap()));
+  toolStep = toolState.log.length-1;
+  showTool(toolStep);
+};
+document.getElementById("step-tool").onclick = () => {
+  if (!toolState) {
+    toolState = fixLogParts(greedy(currentK(), currentCap()));
+    toolStep = 0;
+  } else {
+    toolStep = Math.min(toolStep+1, toolState.log.length-1);
+  }
+  showTool(toolStep);
+};
+function applyPreset(p) {
+  document.getElementById("k-in").value = p==="k3" ? 3 : 2;
+  document.getElementById("cap-in").value = p==="c2" ? 2 : p==="c3" ? 3 : "";
+  toolState = fixLogParts(greedy(currentK(), currentCap()));
+  toolStep = toolState.log.length-1;
+  showTool(toolStep);
+}
+document.querySelectorAll("[data-preset]").forEach(b => b.onclick = () => applyPreset(b.dataset.preset));
+document.querySelectorAll("[data-run-preset]").forEach(b => b.onclick = () => {
+  showTab("lab");
+  applyPreset(b.dataset.runPreset);
+  setTimeout(() => document.getElementById("tool")?.scrollIntoView({behavior:"smooth"}), 0);
+});
+document.querySelectorAll("[data-copy]").forEach(b => b.onclick = async () => {
+  try {
+    await navigator.clipboard.writeText(b.dataset.copy);
+    b.textContent = "Copied";
+    setTimeout(() => { b.textContent = "Copy"; }, 1200);
+  } catch {
+    b.textContent = "Select and copy";
+  }
+});
+loadStarter();
+
+function showTab(name) {
+  const ids = ["lab","game","notes"];
+  if (!ids.includes(name)) name = "lab";
+  ids.forEach(id => {
+    document.getElementById("panel-"+id).hidden = id !== name;
+    document.getElementById("tab-"+id).setAttribute("aria-selected", String(id === name));
+  });
+  document.querySelectorAll(".site-nav a[data-tab-link]").forEach(a => {
+    a.classList.toggle("is-active", a.dataset.tabLink === name);
+  });
+  if (history.replaceState) history.replaceState(null, "", "#"+name);
+}
+document.querySelectorAll("[data-tab]").forEach(b => b.onclick = () => showTab(b.dataset.tab));
+document.querySelectorAll("[data-tab-link]").forEach(el => el.addEventListener("click", (e) => {
+  const t = el.dataset.tabLink;
+  if (!t) return;
+  if (el.tagName === "BUTTON") e.preventDefault();
+  showTab(t);
+  const href = el.getAttribute("href");
+  if (href && href.startsWith("#") && !["#lab","#notes","#game"].includes(href)) {
+    setTimeout(() => document.querySelector(href)?.scrollIntoView({behavior:"smooth"}), 0);
+  }
+}));
+if (["#notes","#walk","#rules","#capacity","#implement","#pitfalls"].includes(location.hash)) {
+  showTab("notes");
+} else if (["#game","#games","#missions"].includes(location.hash)) {
+  showTab("game");
+} else {
+  showTab("lab");
+}
+
+document.querySelectorAll("[data-chal]").forEach(b => b.onclick = () => {
+  const id = b.dataset.chal;
+  const ok = b.dataset.ok === "1";
+  const s = document.getElementById("chal-"+id);
+  s.className = "status-line " + (ok ? "ok" : "bad");
+  s.textContent = ok ? "Correct." : "Try the other option.";
+});
+
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+function mountMatch(el, pairs, statusEl) {
+  let picked = null;
+  let done = 0;
+  function paint() {
+    picked = null;
+    done = 0;
+    statusEl.textContent = "0 / " + pairs.length + " matched";
+    statusEl.className = "status-line";
+    const left = pairs;
+    const right = shuffle(pairs);
+    el.innerHTML = `<div class="match-col"></div><div class="match-col"></div>`;
+    const [L, R] = el.children;
+    left.forEach(p => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = p.left;
+      b.dataset.id = p.id;
+      b.dataset.side = "L";
+      L.appendChild(b);
+    });
+    right.forEach(p => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = p.right;
+      b.dataset.id = p.id;
+      b.dataset.side = "R";
+      R.appendChild(b);
+    });
+  }
+  el.onclick = (e) => {
+    const b = e.target.closest("button");
+    if (!b || b.disabled) return;
+    if (!picked) {
+      el.querySelectorAll("button.picked").forEach(x => x.classList.remove("picked"));
+      b.classList.add("picked");
+      picked = b;
+      return;
+    }
+    if (picked === b) { b.classList.remove("picked"); picked = null; return; }
+    if (picked.dataset.side === b.dataset.side) {
+      picked.classList.remove("picked");
+      b.classList.add("picked");
+      picked = b;
+      return;
+    }
+    const ok = picked.dataset.id === b.dataset.id;
+    if (ok) {
+      picked.classList.add("ok");
+      b.classList.add("ok");
+      picked.disabled = true;
+      b.disabled = true;
+      picked.classList.remove("picked");
+      done += 1;
+      statusEl.className = "status-line ok";
+      statusEl.textContent = done === pairs.length ? "All matched." : done + " / " + pairs.length + " matched";
+      picked = null;
+    } else {
+      picked.classList.add("bad");
+      b.classList.add("bad");
+      const x = picked, y = b;
+      setTimeout(() => { x.classList.remove("bad","picked"); y.classList.remove("bad"); }, 450);
+      picked = null;
+      statusEl.className = "status-line bad";
+      statusEl.textContent = "Not a pair — try again.";
+    }
+  };
+  paint();
+  return paint;
+}
+const resetSteps = mountMatch(
+  document.getElementById("match-steps"),
+  [
+    { id:"s0", left:"Step 0 · singletons", right:"A | B | C | D | E · cut 18" },
+    { id:"s1", left:"Merge A–B @ 5", right:"AB | C | D | E · cut 13" },
+    { id:"s2", left:"Absorb C into AB", right:"ABC | D | E · cut 8" },
+    { id:"s3", left:"Merge D–E @ 5", right:"ABC | DE · cut 3" }
+  ],
+  document.getElementById("match-steps-status")
+);
+const resetRules = mountMatch(
+  document.getElementById("match-rules"),
+  [
+    { id:"aff", left:"Affinity", right:"Sum of crossing edge weights (parallels add)" },
+    { id:"il", left:"Illegal merge", right:"Affinity ≤ 0, or |A|+|B| exceeds capacity" },
+    { id:"tie", left:"Tie-break", right:"Lexicographic cluster labels" },
+    { id:"cut", left:"Cutsize", right:"Weight still crossing between clusters" }
+  ],
+  document.getElementById("match-rules-status")
+);
+document.querySelector("[data-reset-match='steps']").onclick = resetSteps;
+document.querySelector("[data-reset-match='rules']").onclick = resetRules;
+
+const DONE_KEY = "eda-lab-done:learn_clustering:greedy-pair-merge";
+const markBtn = document.getElementById("mark-done");
+function refreshDone() {
+  const on = localStorage.getItem(DONE_KEY) === "1";
+  markBtn.textContent = on ? "Lab marked done" : "Mark lab done";
+  markBtn.classList.toggle("is-done", on);
+  document.getElementById("done-pill").hidden = !on;
+}
+markBtn.onclick = () => {
+  localStorage.setItem(DONE_KEY, localStorage.getItem(DONE_KEY)==="1" ? "0" : "1");
+  refreshDone();
+};
+refreshDone();
+
+const TINY_EDGES = [["A","B",5],["A","C",1],["B","C",4],["C","D",2],["C","E",1],["D","E",5]];
+const MISSIONS = [
+  {
+    id: "er",
+    title: "01 · Night surge in the ER",
+    crisis: "Five rooms share one night staff. Edge weight = critical transfers per hour. Form two crash-cart teams (K=2) so the heaviest corridors stay inside a team.",
+    labels: { A:"Triage", B:"OR", C:"Hall", D:"ICU", E:"Dialysis" },
+    k: 2, capacity: null,
+    win: r => r.parts.join("|")==="ABC|DE" && r.cutsize===3,
+    winText: "Teams Triage+OR+Hall and ICU+Dialysis. Only weak hallways remain cut (3). Crash carts no longer cross the heavy corridors.",
+    failText: "Greedy should protect A–B (5) and D–E (5), then absorb Hall into Triage+OR."
+  },
+  {
+    id: "flood",
+    title: "02 · Flood boats — two shelters, seats of two",
+    crisis: "Five hamlets, two shelters (K=2). Each boat holds at most two hamlets (capacity=2). Heavy roads are the ones you must keep dry. Greedy cannot fake a third seat.",
+    labels: { A:"North", B:"Mill", C:"Bridge", D:"South", E:"Levee" },
+    k: 2, capacity: 2,
+    win: r => r.parts.join("|")==="AB|C|DE" && r.cutsize===8,
+    winText: "North+Mill and South+Levee boarded. Bridge hamlet is stranded — no legal pair left. Cut 8 is the honest answer; do not invent a merge.",
+    failText: "Capacity forbids {North,Mill,Bridge}. After the two heavy roads merge, Bridge has no seat."
+  },
+  {
+    id: "grid",
+    title: "03 · Island the substation before the fault",
+    crisis: "Five substations. Split into two islands (K=2) so a fault on a weak tie does not take down the heavy trunks. Same netlist as the CAD lab.",
+    labels: { A:"Plant", B:"City", C:"Tie", D:"Port", E:"Rail" },
+    k: 2, capacity: null,
+    win: r => r.parts.join("|")==="ABC|DE" && r.cutsize===3,
+    winText: "Islands Plant+City+Tie | Port+Rail. Remaining cut is the weak ties C–D (2) and C–E (1). The 5-weight trunks stay inside islands.",
+    failText: "Deploy greedy with K=2 and no cap — same code path as ABC|DE cut 3."
+  }
+];
+const XP_KEY = "eda-lab-xp:greedy-pair-merge";
+function prettyParts(parts, labels) {
+  return parts.map(lab => [...lab].map(n => labels[n] || n).join("+")).join("  |  ");
+}
+function renderXp() {
+  let solved = [];
+  try { solved = JSON.parse(localStorage.getItem(XP_KEY) || "[]"); } catch {}
+  const line = document.getElementById("xp-line");
+  if (line) line.textContent = "Missions solved: " + solved.length + " / " + MISSIONS.length;
+}
+function markSolved(id) {
+  let solved = [];
+  try { solved = JSON.parse(localStorage.getItem(XP_KEY) || "[]"); } catch {}
+  if (!solved.includes(id)) solved.push(id);
+  localStorage.setItem(XP_KEY, JSON.stringify(solved));
+  renderXp();
+}
+function truthCut(m) {
+  const g = { nodes: GRAPH.nodes, edges: TINY_EDGES };
+  const r = greedy(m.k, m.capacity, g);
+  const owner = {};
+  r.lastParts.forEach((p,i) => p.forEach(n => owner[n] = i));
+  const cut = new Set();
+  TINY_EDGES.forEach(([u,v]) => { if (owner[u] !== owner[v]) cut.add(key(u,v)); });
+  return { result: r, cut };
+}
+function sketchSvg(drawn, pick, mark) {
+  const lines = TINY_EDGES.map(([u,v,w]) => {
+    const k = key(u,v);
+    let cls = drawn.has(k) ? "drawn" : "ghost";
+    if (mark) {
+      if (mark.truth.has(k) && drawn.has(k)) cls = "ok-cut";
+      else if (drawn.has(k) && !mark.truth.has(k)) cls = "bad-cut";
+      else if (mark.truth.has(k) && !drawn.has(k)) cls = "missed";
+    }
+    const [x1,y1]=POS[u], [x2,y2]=POS[v];
+    return `<g data-edge="${k}">
+      <line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="transparent" stroke-width="16"/>
+      <line class="edge ${cls}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>
+      <text class="lbl" x="${(x1+x2)/2+8}" y="${(y1+y2)/2-6}">${w}</text>
+    </g>`;
+  }).join("");
+  const nodes = GRAPH.nodes.map(n => {
+    const [x,y]=POS[n];
+    return `<g data-node="${n}">
+      <circle class="${pick===n?"pick":""}" cx="${x}" cy="${y}" r="18" fill="${FILL[n]}"/>
+      <text class="n" x="${x}" y="${y+5}" text-anchor="middle">${n}</text>
+    </g>`;
+  }).join("");
+  return svg(lines + nodes);
+}
+function mountMissions() {
+  const root = document.getElementById("mission-root");
+  if (!root) return;
+  root.innerHTML = MISSIONS.map(m => `
+    <div class="card" data-mission="${m.id}">
+      <div class="mission-head">
+        <h3 style="margin:0">${m.title}</h3>
+        <span class="pill">${m.capacity == null ? "K="+m.k : "K="+m.k+" · cap "+m.capacity}</span>
+      </div>
+      <p>${m.crisis}</p>
+      <p><strong>Map:</strong> ${Object.entries(m.labels).map(([k,v]) => k+"="+v).join(" · ")}</p>
+      <p>Dashed grey = possible corridor. Click two rooms (or a dashed line) to draw the <strong>cut</strong> you think greedy still leaves. Click a drawn line to erase it.</p>
+      <div class="graph draw" id="mg-${m.id}"></div>
+      <div class="controls">
+        <button type="button" class="btn btn-primary" data-mission-check="${m.id}">Check drawing</button>
+        <button type="button" class="btn btn-ghost" data-mission-clear="${m.id}">Clear lines</button>
+      </div>
+      <p class="status-line" id="ms-${m.id}"></p>
+    </div>`).join("");
+  MISSIONS.forEach(m => {
+    const drawn = new Set();
+    let pick = null;
+    let mark = null;
+    const box = document.getElementById("mg-"+m.id);
+    const st = document.getElementById("ms-"+m.id);
+    function paint() {
+      box.innerHTML = sketchSvg(drawn, pick, mark);
+    }
+    function toggle(k) {
+      mark = null;
+      if (drawn.has(k)) drawn.delete(k); else drawn.add(k);
+      pick = null;
+      st.className = "status-line";
+      st.textContent = drawn.size ? drawn.size + " line(s) drawn. Check when the cut looks right." : "Click two nodes, or a dashed corridor, to draw.";
+      paint();
+    }
+    box.addEventListener("click", (e) => {
+      const edgeEl = e.target.closest("[data-edge]");
+      const nodeEl = e.target.closest("[data-node]");
+      if (edgeEl) { toggle(edgeEl.getAttribute("data-edge")); return; }
+      if (!nodeEl) return;
+      const n = nodeEl.getAttribute("data-node");
+      if (!pick) { pick = n; paint(); return; }
+      if (pick === n) { pick = null; paint(); return; }
+      const k = key(pick, n);
+      const exists = TINY_EDGES.some(([u,v]) => key(u,v) === k);
+      if (!exists) {
+        st.className = "status-line bad";
+        st.textContent = "No corridor between those two rooms.";
+        pick = n;
+        paint();
+        return;
+      }
+      toggle(k);
+    });
+    document.querySelector("[data-mission-clear='"+m.id+"']").onclick = () => {
+      drawn.clear(); pick = null; mark = null;
+      st.className = "status-line";
+      st.textContent = "";
+      paint();
+    };
+    document.querySelector("[data-mission-check='"+m.id+"']").onclick = () => {
+      const { result, cut } = truthCut(m);
+      mark = { truth: cut };
+      const extra = [...drawn].filter(k => !cut.has(k));
+      const missing = [...cut].filter(k => !drawn.has(k));
+      const ok = extra.length === 0 && missing.length === 0;
+      paint();
+      st.className = "status-line " + (ok ? "ok" : "bad");
+      if (ok) {
+        st.textContent = "Correct cut. " + m.winText + " Solver: " + prettyParts(result.parts, m.labels) + " · cutsize " + result.cutsize + ".";
+        markSolved(m.id);
+      } else {
+        const miss = missing.map(k => k.replace("|","–")).join(", ") || "none";
+        const extras = extra.map(k => k.replace("|","–")).join(", ") || "none";
+        st.textContent = "Not yet. Missing cut: " + miss + ". Extra lines: " + extras + ". Green = right, red = extra, gold dashed = missing. " + m.failText;
+      }
+    };
+    paint();
+  });
+  renderXp();
+}
+mountMissions();
+
+const SEARCH = [
+  ["Video", "#clip"], ["Game", "#game"], ["Play the logic", "#games"], ["Missions", "#missions"],
+  ["Tool", "#tool"], ["Quiz", "#quiz"],
+  ["Rules", "#rules"], ["Walkthrough", "#walk"], ["Capacity", "#capacity"],
+  ["Implement", "#implement"], ["Pitfalls", "#pitfalls"], ["Course notes", "#notes"]
+];
+const sInput = document.getElementById("site-search-input");
+const sBox = document.querySelector(".site-search-results");
+sInput.addEventListener("input", () => {
+  const q = sInput.value.trim().toLowerCase();
+  if (!q) { sBox.hidden = true; sBox.innerHTML=""; return; }
+  const hits = SEARCH.filter(([t]) => t.toLowerCase().includes(q));
+  sBox.hidden = false;
+  sBox.innerHTML = hits.length ? hits.map(([t,h]) => `<a class="site-search-hit" href="${h}">${t}</a>`).join("") : `<div class="site-search-hit">No matches</div>`;
+});
+sBox.addEventListener("click", (e) => {
+  sBox.hidden = true;
+  const a = e.target.closest("a");
+  if (!a) return;
+  const href = a.getAttribute("href");
+  const notes = ["#rules","#walk","#capacity","#implement","#pitfalls","#notes"].includes(href);
+  const game = ["#game","#games","#missions"].includes(href);
+  showTab(notes ? "notes" : game ? "game" : "lab");
+});
+
+const QUIZ = [
+  { id:"q1", prompt:"1. PDF step 1: every node starts alone. The five edges sum to 5+4+2+5+1+1. What is the cutsize while all cells are singletons?",
+    choices:["3","8","13","18"],
+    answer:"3",
+    explain:"Cutsize is every edge that still crosses clusters. With five singletons, nothing is contracted, so cutsize = 18." },
+  { id:"q2", prompt:"2. A–B and D–E are both weight 5. Why does the PDF contract A–B first?",
+    choices:["D–E must stay cut because it is a bridge","Greedy only looks at the first edge listed in the JSON","Highest affinity, then lexicographic labels: A < D so A–B wins","B–C = 4 forces A–B to merge before anything else"],
+    answer:"2",
+    explain:"Ranking is max affinity, then lexicographic cluster labels. Singletons A and D tie at 5; A < D, so A–B fires first." },
+  { id:"q3", prompt:"3. After A–B contracts, C meets supernode AB on A–C (1) and B–C (4). Affinity AB–C is 5, which ties D–E. What merge fires, and why?",
+    choices:["D–E, because it is an original edge of weight 5","AB–C: parallel edges sum to 5, and labels AB/C beat D/E","C–D, the weakest bridge, to reduce cutsize fastest","No merge: a tie means the student stops"],
+    answer:"1",
+    explain:"Supernode edges sum parallels (1+4=5). The tie-break is lexicographic labels, not “prefer original edges,” so AB–C wins and the PDF absorbs C next." },
+  { id:"q4", prompt:"4. Unconstrained K=2 golden is ABC|DE. Which edges remain cut, and what is cutsize?",
+    choices:["A–C and B–C; cutsize 5","D–E only; cutsize 5","C–D (2) and C–E (1); cutsize 3","All six edges; cutsize 18"],
+    answer:"2",
+    explain:"Heavy edges A–B, B–C, and D–E sit inside clusters. Only the weak bridges C–D and C–E cross, so cutsize = 2+1 = 3." },
+  { id:"q5", prompt:"5. The PDF notes capacity=2 would forbid size-3 {A,B,C}. With K=2 and that cap, what does greedy actually return?",
+    choices:["It undoes A–B, merges D–E first, and still reaches ABC|DE cut 3","After A–B then D–E, C has no legal partner: AB|C|DE, cut 8, stopped above K","C is split across both clusters so every cluster has size 2","Greedy always reaches K, so it ignores the cap on the last merge"],
+    answer:"1",
+    explain:"Illegal merges are skipped before ranking. {A,B,C} never forms. After A–B and D–E, no remaining pair both has a positive edge and fits in the cap, so the run strands at three clusters with cut 8. Greedy does not backtrack." }
+];
+
+const root = document.getElementById("quiz-root");
+root.innerHTML = QUIZ.map(q => {
+  const opts = q.choices.map((c,i) => {
+    const v = typeof c === "string" ? String(i) : c.v;
+    const t = typeof c === "string" ? c : c.t;
+    return `<label><input type="radio" name="${q.id}" value="${v}">${t}</label>`;
+  }).join("");
+  return `<div class="quiz-item" data-id="${q.id}" data-answer="${q.answer}" data-explain="${q.explain.replaceAll('"','&quot;')}">
+    <p class="prompt">${q.prompt}</p>
+    <div class="quiz-choices">${opts}</div>
+    <button type="button" class="btn btn-secondary" data-check="${q.id}">Check answer</button>
+    <div class="quiz-result"></div>
+  </div>`;
+}).join("");
+
+function gradeItem(item) {
+  const ans = item.dataset.answer;
+  const picked = item.querySelector("input:checked");
+  const box = item.querySelector(".quiz-result");
+  box.classList.add("show");
+  if (!picked) { box.className="quiz-result show bad"; box.textContent="Pick an answer first."; return false; }
+  const ok = picked.value === ans;
+  box.className = "quiz-result show " + (ok ? "ok" : "bad");
+  box.textContent = (ok ? "Correct. " : "Not quite. ") + item.dataset.explain;
+  return ok;
+}
+root.addEventListener("click", e => {
+  const id = e.target.dataset.check;
+  if (!id) return;
+  gradeItem(root.querySelector(`[data-id="${id}"]`));
+});
+document.getElementById("score-quiz").onclick = () => {
+  let n=0, ok=0;
+  root.querySelectorAll(".quiz-item").forEach(item => { n++; if (gradeItem(item)) ok++; });
+  const sum = document.querySelector(".quiz-summary");
+  sum.classList.add("show");
+  sum.textContent = `Score: ${ok} / ${n}`;
+};
+
+document.getElementById("checklist").addEventListener("change", () => {
+  const boxes = [...document.querySelectorAll("#checklist input")].map(x => x.checked);
+  localStorage.setItem("eda-lab-check:greedy-pair-merge", JSON.stringify(boxes));
+});
+try {
+  const saved = JSON.parse(localStorage.getItem("eda-lab-check:greedy-pair-merge")||"[]");
+  document.querySelectorAll("#checklist input").forEach((x,i) => { if (saved[i]) x.checked = true; });
+} catch {}
+</script>
+</body>
+</html>

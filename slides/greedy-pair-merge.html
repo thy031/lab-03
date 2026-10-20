@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Greedy pair merge — learn_clustering 03</title>
+  <style>
+    :root {
+      --ink: #1e1b4b;
+      --muted: #475569;
+      --teal: #0f766e;
+      --teal-dark: #115e59;
+      --line: #e2e8f0;
+      --code: #f1f5f9;
+      --accent: #c2410c;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: #0f172a; color: var(--ink); font-family: "Segoe UI", system-ui, sans-serif; }
+    .deck { height: 100%; display: flex; flex-direction: column; }
+    .stage { flex: 1; display: flex; align-items: center; justify-content: center; padding: 1.25rem; }
+    .slide {
+      display: none;
+      width: min(1100px, 100%);
+      min-height: min(620px, 86vh);
+      background: #fff;
+      border-radius: 12px;
+      padding: 2.1rem 2.4rem 2.6rem;
+      position: relative;
+      box-shadow: 0 18px 50px rgba(0,0,0,.28);
+    }
+    .slide.on { display: block; }
+    h1 { font-size: 2.35rem; margin: 0 0 .6rem; letter-spacing: -.02em; }
+    h2 { font-size: 2rem; margin: 0 0 1.1rem; }
+    p, li { font-size: 1.12rem; line-height: 1.45; color: #334155; }
+    .sub { font-size: 1.28rem; color: var(--muted); font-weight: 500; }
+    .center { display: flex; flex-direction: column; justify-content: center; min-height: 480px; text-align: center; }
+    .foot {
+      position: absolute; right: 1.6rem; bottom: .7rem;
+      font-size: .72rem; color: #94a3b8;
+    }
+    .panel {
+      border: 1px solid #d1d5db; border-radius: 10px; overflow: hidden;
+    }
+    .panel h3 {
+      margin: 0; padding: .7rem 1rem .15rem; background: var(--teal); color: #fff; font-size: 1.05rem;
+    }
+    .kicker { font-size: .7rem; letter-spacing: .08em; text-transform: uppercase; color: #99f6e4; padding: .55rem 1rem 0; background: var(--teal); }
+    .meta { font-size: .78rem; color: #ccfbf1; padding: 0 1rem .55rem; background: var(--teal); }
+    .split { display: grid; grid-template-columns: 1.05fr 1fr; min-height: 360px; }
+    .graph { padding: .6rem; background: #f8fafc; }
+    .explain { padding: 1rem 1.15rem 1.1rem; }
+    .explain h4 { margin: 0 0 .45rem; font-size: 1rem; }
+    .explain ul { margin: .4rem 0 .8rem; padding-left: 1.15rem; }
+    .explain li { font-size: .98rem; }
+    .log {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: .82rem; background: #f1f5f9; border-radius: 8px; padding: .65rem .75rem; color: #0f172a;
+    }
+    pre {
+      background: var(--code); border-radius: 10px; padding: 1rem 1.1rem; overflow: auto;
+      font-size: .92rem; line-height: 1.45;
+    }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    table { width: 100%; border-collapse: collapse; font-size: .95rem; }
+    th, td { text-align: left; padding: .45rem .5rem; border-bottom: 1px solid var(--line); }
+    th { color: var(--teal-dark); font-weight: 600; }
+    .num { text-align: right; font-variant-numeric: tabular-nums; }
+    .bar {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: .75rem; padding: .55rem 1rem .8rem; color: #cbd5e1;
+    }
+    .bar button {
+      background: #1e293b; color: #e2e8f0; border: 1px solid #334155;
+      border-radius: 8px; padding: .4rem .8rem; cursor: pointer; font-size: .9rem;
+    }
+    .bar button:hover { background: #334155; }
+    .dots { display: flex; gap: .28rem; flex-wrap: wrap; justify-content: center; }
+    .dots button {
+      width: .55rem; height: .55rem; padding: 0; border-radius: 50%;
+      border: 0; background: #475569; cursor: pointer;
+    }
+    .dots button.cur { background: #5eead4; }
+    .edge { stroke: #64748b; stroke-width: 2.4; }
+    .edge.hot { stroke: #c2410c; stroke-width: 3.4; }
+    .edge.dim { stroke: #cbd5e1; }
+    .edge.cut { stroke: #c2410c; stroke-width: 3.2; }
+    .lbl { font-size: 12px; fill: #475569; font-family: ui-sans-serif, system-ui, sans-serif; }
+    .n { font-size: 14px; font-weight: 700; fill: #fff; font-family: ui-sans-serif, system-ui, sans-serif; }
+    ul.tight li { margin: .35rem 0; }
+    .two { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2rem; }
+    @media (max-width: 860px) {
+      .split, .two { grid-template-columns: 1fr; }
+      .slide { padding: 1.3rem 1.1rem 2.4rem; }
+      h1 { font-size: 1.8rem; } h2 { font-size: 1.5rem; }
+    }
+  </style>
+</head>
+<body>
+<div class="deck">
+  <div class="stage">
+
+    <section class="slide on" data-i="0">
+      <div class="center">
+        <h1>Greedy pair merge</h1>
+        <p class="sub">The simplest coarsening engine that still feels like CAD</p>
+      </div>
+      <div class="foot">learn_clustering — 03 greedy pair merge</div>
+    </section>
+
+    <section class="slide" data-i="1">
+      <h2>What the coarsener must do</h2>
+      <ul class="tight">
+        <li>Start from <strong>singletons</strong> — every cell is its own cluster.</li>
+        <li>Repeatedly <strong>contract the highest-affinity legal pair</strong> into a supernode.</li>
+        <li>Stop at target <strong>K</strong>, or when no legal positive-weight pair remains.</li>
+        <li>Report the partition and its <strong>cutsize</strong> (weight still crossing clusters).</li>
+      </ul>
+      <p>There is no undo. Heavy nets should disappear from the cut; weak bridges may stay cut. Capacity (max cluster size) is optional, but when it is on it can block the unconstrained path.</p>
+      <div class="foot">learn_clustering — 03 greedy pair merge</div>
+    </section>
+
+    <section class="slide" data-i="2">
+      <h2>Ranking rules (lock these)</h2>
+      <div class="two">
+        <div>
+          <table>
+            <tr><th>Signal</th><th>Rule</th></tr>
+            <tr><td>Affinity</td><td>Sum of current edge weight between two clusters (parallels add)</td></tr>
+            <tr><td>Illegal</td><td>Skip if affinity ≤ 0, or if <code>|A|+|B|</code> exceeds capacity</td></tr>
+            <tr><td>Pick</td><td>Maximum affinity</td></tr>
+            <tr><td>Tie-break</td><td>Lexicographic cluster labels (sorted member names joined)</td></tr>
+            <tr><td>Cutsize</td><td>Sum of weights with endpoints in different clusters</td></tr>
+          </table>
+        </div>
+        <div>
+          <p>Label examples: <code>A</code>, <code>AB</code>, <code>ABC</code>. After each merge, sort remaining clusters by label so later ties stay stable.</p>
+          <p>On <code>tiny_graph</code>, A–B vs D–E are both weight 5; A–B wins because <code>A &lt; D</code>. After that, AB–C vs D–E are both 5; <code>AB &lt; D</code> so C is absorbed first.</p>
+        </div>
+      </div>
+      <div class="foot">learn_clustering — 03 greedy pair merge</div>
+    </section>
+
+    <section class="slide" data-i="3">
+      <h2>Every node starts alone</h2>
+      <div class="panel">
+        <div class="kicker">Greedy pair merge</div>
+        <h3>Every node starts alone</h3>
+        <div class="meta">Step 1 / 5 · singletons · module01-03-greedy-pair-merge</div>
+        <div class="split">
+          <div class="graph" id="g0"></div>
+          <div class="explain">
+            <h4>Explanation</h4>
+            <p>Agglomerative clustering begins with K=5 singletons. We repeatedly merge the highest-affinity legal pair until we hit target K.</p>
+            <ul>
+              <li>Target here: K=2</li>
+              <li>No capacity limit in the reference run</li>
+              <li>Priority = current edge-weight ranking</li>
+            </ul>
+            <div class="log">K=5 → aim for K=2<br>cutsize (all separate): 18</div>
+          </div>
+        </div>
+      </div>
+      <div class="foot">learn_clustering — 03 greedy pair merge</div>
+    </section>
+
+    <section class="slide" data-i="4">
+      <h2>Merge 1: contract A–B</h2>
+      <div class="panel">
+        <div class="kicker">Greedy pair merge</div>
+        <h3>Merge 1: contract A–B</h3>
+        <div class="meta">Step 2 / 5 · merge-ab · module01-03-greedy-pair-merge</div>
+        <div class="split">
+          <div class="graph" id="g1"></div>
+          <div class="explain">
+            <h4>Explanation</h4>
+            <p>Heaviest edge is A–B at weight 5, so they merge first into a supernode. That protects the strongest connection immediately.</p>
+            <ul>
+              <li>Pick top legal pair on current graph</li>
+              <li>Contract into a cluster</li>
+              <li>Recompute edges to the new supernode</li>
+            </ul>
+            <div class="log">merge: A–B @ 5 → C0<br>clusters: AB | C | D | E<br>cutsize: 13</div>
+          </div>
+        </div>
+      </div>
+      <div class="foot">learn_clustering — 03 greedy pair merge</div>
+    </section>
+
+    <section class="slide" data-i="5">
+      <h2>Merge 2: absorb C into AB</h2>
+      <div class="panel">
+        <div class="kicker">Greedy pair merge</div>
+        <h3>Merge 2: absorb C into AB</h3>
+        <div class="meta">Step 3 / 5 · absorb-c · module01-03-greedy-pair-merge</div>
+        <div class="split">
+          <div class="graph" id="g2"></div>
+          <div class="explain">
+            <h4>Explanation</h4>
+            <p>After contraction, C connects to {A,B} with combined weight 5. That <strong>ties</strong> D–E; alphabetical / lexicographic labels merge C next, forming {A,B,C}.</p>
+            <ul>
+              <li>Supernode edges sum parallel connections (AC 1 + BC 4)</li>
+              <li>C joins the A–B community</li>
+              <li>Still two merges left toward K=2</li>
+            </ul>
+            <div class="log">merge: C–AB @ 5<br>clusters: ABC | D | E<br>cutsize now: 8</div>
+          </div>
+        </div>
+      </div>
+      <div class="foot">learn_clustering — 03 greedy pair merge</div>
+    </section>
+
+    <section class="slide" data-i="6">
+      <h2>Merge 3: contract D–E</h2>
+      <div class="panel">
+        <div class="kicker">Greedy pair merge</div>
+        <h3>Merge 3: contract D–E</h3>
+        <div class="meta">Step 4 / 5 · merge-de · module01-03-greedy-pair-merge</div>
+        <div class="split">
+          <div class="graph" id="g3"></div>
+          <div class="explain">
+            <h4>Explanation</h4>
+            <p>Last merge joins D–E at weight 5. We now have exactly two clusters: {A,B,C} versus {D,E}.</p>
+            <ul>
+              <li>Reached target K=2</li>
+              <li>Heavy edges sit inside clusters</li>
+              <li>Only weak bridge edges remain cut</li>
+            </ul>
+            <div class="log">merge: D–E @ 5<br>clusters: ABC | DE<br>cutsize: 3</div>
+          </div>
+        </div>
+      </div>
+      <div class="foot">learn_clustering — 03 greedy pair merge</div>
+    </section>
+
+    <section class="slide" data-i="7">
+      <h2>Result: cutsize 3</h2>
+      <div class="panel">
+        <div class="kicker">Greedy pair merge</div>
+        <h3>Result: cutsize 3</h3>
+        <div class="meta">Step 5 / 5 · final-cut · module01-03-greedy-pair-merge</div>
+        <div class="split">
+          <div class="graph" id="g4"></div>
+          <div class="explain">
+            <h4>Explanation</h4>
+            <p>Cut edges are C–D (2) and C–E (1). Greedy locked in the natural communities without backtracking — fast, but capacity rules can block this path.</p>
+            <ul>
+              <li>Golden: ABC|DE, cut=3</li>
+              <li>Capacity=2 would forbid size-3 {A,B,C}</li>
+              <li>Refinement labs repair worse seeds later</li>
+            </ul>
+            <div class="log">Final parts: ABC|DE<br>cutsize = 2+1 = 3</div>
+          </div>
+        </div>
+      </div>
+      <div class="foot">learn_clustering — 03 greedy pair merge</div>
+    </section>
+
+    <section class="slide" data-i="8">
+      <h2>Capacity = 2 forks the path</h2>
+      <p>Same graph, same K=2, but a cluster may hold at most two cells. Size-3 {A,B,C} is illegal, so after A–B the 5-edge D–E fires. Then C has no legal partner and the run <strong>stops at three clusters</strong>.</p>
+      <table>
+        <tr><th>Preset</th><th>Parts</th><th class="num">Cutsize</th><th>Note</th></tr>
+        <tr><td><code>--k 2</code></td><td>ABC|DE</td><td class="num">3</td><td>unconstrained golden</td></tr>
+        <tr><td><code>--k 3</code></td><td>ABC|D|E</td><td class="num">8</td><td>stop before D–E</td></tr>
+        <tr><td><code>--k 2 --capacity 2</code></td><td>AB|C|DE</td><td class="num">8</td><td>cap blocks the golden community</td></tr>
+        <tr><td><code>--k 2 --capacity 3</code></td><td>ABC|DE</td><td class="num">3</td><td>cap still allows {A,B,C}</td></tr>
+      </table>
+      <div class="foot">learn_clustering — 03 greedy pair merge</div>
+    </section>
+
+    <section class="slide" data-i="9">
+      <h2>Browser lab track</h2>
+      <ul class="tight">
+        <li>In the browser lab, load the starter, try the K and capacity presets, and run greedy merge.</li>
+        <li>Work the challenges:
+          <ul>
+            <li><strong>C1.</strong> After A–B, two pairs sit at weight 5. Which merge fires, and which rule decides it?</li>
+            <li><strong>C2.</strong> With capacity=2 and K=2, why does the run stop with three clusters?</li>
+            <li><strong>C3.</strong> Name the two cut edges in the unconstrained golden (weights 2 and 1).</li>
+          </ul>
+        </li>
+      </ul>
+      <div class="foot">learn_clustering — 03 greedy pair merge</div>
+    </section>
+
+    <section class="slide" data-i="10">
+      <h2>Implement track</h2>
+      <ul class="tight">
+        <li>Run the reference greedy merge down to two clusters.</li>
+        <li>You should land on A–B–C versus D–E with cutsize three.</li>
+        <li>Re-implement contraction yourself and keep a deterministic tie-break so golden tests stay <strong>reproducible</strong>.</li>
+        <li>Also run <code>--capacity 2</code> and confirm the stranded result <code>AB|C|DE</code> / cut 8 — do not invent a merge to force K.</li>
+      </ul>
+      <div class="foot">learn_clustering — 03 greedy pair merge</div>
+    </section>
+
+    <section class="slide" data-i="11">
+      <h2>Implement track — try these</h2>
+      <pre><code># pwd — print working directory
+pwd
+
+# ls examples — confirm tiny_graph.json is present
+ls examples
+
+# greedy merge to K=2 via reference solver
+export PYTHONPATH=../common
+python3 ../common/solvers.py examples/tiny_graph.json --k 2
+
+# capacity fork (expect AB|C|DE, cutsize 8)
+python3 ../common/solvers.py examples/tiny_graph.json --k 2 --capacity 2</code></pre>
+      <div class="foot">learn_clustering — 03 greedy pair merge</div>
+    </section>
+
+    <section class="slide" data-i="12">
+      <h2>Pitfalls to watch</h2>
+      <ul class="tight">
+        <li>Greedy is myopic: a great first merge can strand you with a bad global cut.</li>
+        <li>Watch illegal merges that violate a size cap — test capacity <em>before</em> ranking, not after.</li>
+        <li>Updating affinities incorrectly after contraction creates silent wrong clusters until <strong>goldens fail</strong>.</li>
+        <li>A missing lexicographic tie-break makes AB–C versus D–E a coin flip, so <code>tiny_graph</code> tests flake.</li>
+      </ul>
+      <div class="foot">learn_clustering — 03 greedy pair merge</div>
+    </section>
+
+    <section class="slide" data-i="13">
+      <h2>Your turn</h2>
+      <ul class="tight">
+        <li>Implement greedy pair merge end to end, hit a chosen K, and record cutsize at every merge.</li>
+        <li>Match unconstrained golden <code>ABC|DE</code> / 3 and report the capacity=2 result <code>AB|C|DE</code> / 8.</li>
+        <li>Complete the checklist and quiz (see <code>lab3plan.md</code>).</li>
+      </ul>
+      <div class="foot">learn_clustering — 03 greedy pair merge</div>
+    </section>
+
+  </div>
+  <div class="bar">
+    <button type="button" id="prev">Prev</button>
+    <div class="dots" id="dots"></div>
+    <span id="pos">1 / 14</span>
+    <button type="button" id="next">Next</button>
+  </div>
+</div>
+<script>
+const pos = { A:[90,70], B:[250,58], C:[170,150], E:[90,250], D:[270,240] };
+const fill = { A:"#166534", B:"#14532d", C:"#c2410c", D:"#1d4ed8", E:"#9f1239" };
+const fillHot = { A:"#c2410c", B:"#c2410c", C:"#166534", D:"#c2410c", E:"#c2410c" };
+
+function node(id, hot) {
+  const [x,y] = pos[id];
+  const c = (hot && hot.includes(id)) ? fillHot[id] : fill[id];
+  return `<circle cx="${x}" cy="${y}" r="18" fill="${c}"/><text class="n" x="${x}" y="${y+5}" text-anchor="middle">${id}</text>`;
+}
+function edge(a,b,w,cls) {
+  const [x1,y1]=pos[a], [x2,y2]=pos[b];
+  const mx=(x1+x2)/2, my=(y1+y2)/2;
+  return `<line class="edge ${cls||""}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>
+    <text class="lbl" x="${mx+8}" y="${my-6}">${w}</text>`;
+}
+function svg(inner) {
+  return `<svg viewBox="0 0 360 310" width="100%" height="320" role="img" aria-label="tiny_graph walkthrough">${inner}</svg>`;
+}
+
+document.getElementById("g0").innerHTML = svg(
+  edge("A","B",5)+edge("A","C",1)+edge("B","C",4)+edge("C","D",2)+edge("C","E",1)+edge("D","E",5)+
+  node("A")+node("B")+node("C")+node("D")+node("E")
+);
+document.getElementById("g1").innerHTML = svg(
+  edge("A","B",5,"hot")+edge("A","C",1)+edge("B","C",4)+edge("C","D",2)+edge("C","E",1)+edge("D","E",5)+
+  node("A",["A","B"])+node("B",["A","B"])+node("C")+node("D")+node("E")
+);
+document.getElementById("g2").innerHTML = svg(
+  edge("A","B",5,"dim")+edge("A","C",1,"hot")+edge("B","C",4,"hot")+edge("C","D",2)+edge("C","E",1)+edge("D","E",5)+
+  node("A")+node("B")+node("C",["C"])+node("D")+node("E")
+);
+document.getElementById("g3").innerHTML = svg(
+  edge("A","B",5,"dim")+edge("A","C",1,"dim")+edge("B","C",4,"dim")+edge("C","D",2)+edge("C","E",1)+edge("D","E",5,"hot")+
+  node("A")+node("B")+node("C")+node("D",["D","E"])+node("E",["D","E"])
+);
+document.getElementById("g4").innerHTML = svg(
+  edge("A","B",5,"dim")+edge("A","C",1,"dim")+edge("B","C",4,"dim")+edge("C","D",2,"cut")+edge("C","E",1,"cut")+edge("D","E",5,"dim")+
+  node("A")+node("B")+node("C")+node("D")+node("E")
+);
+
+const slides = [...document.querySelectorAll(".slide")];
+const dots = document.getElementById("dots");
+let i = 0;
+slides.forEach((_, idx) => {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.setAttribute("aria-label", "Slide " + (idx+1));
+  b.addEventListener("click", () => show(idx));
+  dots.appendChild(b);
+});
+function show(n) {
+  i = (n + slides.length) % slides.length;
+  slides.forEach((s, k) => s.classList.toggle("on", k === i));
+  [...dots.children].forEach((d, k) => d.classList.toggle("cur", k === i));
+  document.getElementById("pos").textContent = (i+1) + " / " + slides.length;
+}
+document.getElementById("prev").onclick = () => show(i-1);
+document.getElementById("next").onclick = () => show(i+1);
+document.addEventListener("keydown", (e) => {
+  if (e.key === "ArrowRight" || e.key === "PageDown" || e.key === " ") { e.preventDefault(); show(i+1); }
+  if (e.key === "ArrowLeft" || e.key === "PageUp") { e.preventDefault(); show(i-1); }
+  if (e.key === "Home") show(0);
+  if (e.key === "End") show(slides.length-1);
+});
+show(0);
+</script>
+</body>
+</html>
