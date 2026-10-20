@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render 9 narrated slides (moviepy 2.x / ffmpeg) and rewrite greedy-pair-merge.pdf."""
+"""Render narrated slides (moviepy 2.x / ffmpeg) and rewrite greedy-pair-merge.pdf."""
 
 from __future__ import annotations
 
@@ -18,7 +18,10 @@ FRAMES = SLIDES_DIR / "video_frames"
 PDF_OUT = SLIDES_DIR / "greedy-pair-merge.pdf"
 VIDEO_OUT = ROOT / "media" / "greedy_pair_merge_presentation.mp4"
 VOICE = ROOT / "media" / "natasha.mp3"
+VOICE_SRC = Path("/mnt/c/Users/user/Downloads/TTSOL-en-AU-Natasha-20261021-022533.mp3")
 CUES = SLIDES_DIR / "new dlies"
+# Manual slide onsets (mm:ss) from the 2026-10-21 Natasha take.
+ANCHORS = [0.00, 52.00, 89.00, 118.00, 133.00, 150.00, 170.00, 186.00, 197.00, 232.00]
 FFMPEG = get_ffmpeg_exe()
 
 WIDTH, HEIGHT = 1920, 1080
@@ -49,16 +52,29 @@ slides_data = [
     },
     {
         "type": "text",
-        "title": "Engine Rules & Selection Mechanics",
-        "subtitle": "Pair Ranking, Affinity & Termination",
+        "title": "Engine Rules & Specification",
+        "subtitle": "Initialization, Contraction, Termination, Cutsize",
         "bullets": [
-            "Initialization: singletons (every cell alone).",
-            "Contraction: highest-affinity legal pair merges.",
-            "Termination: reach K, or no positive legal pair remains.",
-            "Affinity: sum of edge weights between clusters.",
-            "Tie-break: lexicographical ordering of sorted labels.",
+            "Initialization: singletons — every cell is its own cluster.",
+            "Contraction: repeatedly merge the highest-affinity legal pair.",
+            "Termination: stop at K, or when no legal positive-weight pair remains.",
+            "No fake merges: if no valid pair exists, stop even if K is unmet.",
+            "Cutsize: report partition + sum of weights crossing boundaries.",
         ],
-        "script": "Engine Rules and Specification. Initialization: Starts from singletons where every cell is its own individual cluster. Contraction: Repeatedly contracts the highest-affinity legal pair into a supernode. Termination: Stops when reaching target K or when no legal positive-weight pair remains. Notice: the algorithm will not invent fake merges to hit K if no valid pairs exist. Cutsize Reporting: Reports final partition and cutsize. Pair Ranking and Selection Rules: Affinity sums current edge weights between two clusters. Skip if affinity is less than or equal to 0, or if size exceeds capacity limit. Choose maximum affinity pair with lexicographical tie-breaking.",
+        "script": "Engine Rules and Specification. Initialization: Starts from singletons where every cell is its own individual cluster. Contraction: Repeatedly contracts the highest-affinity legal pair into a supernode. Termination: Stops when reaching target K or when no legal positive-weight pair remains. Notice: the algorithm will not invent fake merges to hit K if no valid pairs exist. Cutsize Reporting: Reports the final partition and cutsize, sum of edge weights crossing cluster boundaries.",
+    },
+    {
+        "type": "text",
+        "title": "Pair Ranking & Selection Rules",
+        "subtitle": "Signal · Rule · Specification",
+        "bullets": [
+            "Affinity: sum current edge weights; parallel connections add.",
+            "Illegal: skip if affinity ≤ 0, or |A| + |B| exceeds capacity.",
+            "Pick: choose the legal pair with maximum affinity.",
+            "Tie-break: lexicographic order of sorted member names joined.",
+            "tiny_graph: A–B vs D–E both 5 → A–B; then AB < D so C is absorbed.",
+        ],
+        "script": "Pair Ranking and Selection Rules. Affinity is the sum of current edge weights between two clusters; parallel connections sum up. Skip if affinity is less than or equal to 0, or if combined node size A plus B exceeds the capacity limit. Choose the pair with maximum affinity. Tie-break with lexicographical ordering of sorted cluster member names joined together.",
     },
     {
         "type": "graph",
@@ -127,15 +143,16 @@ slides_data = [
     },
     {
         "type": "text",
-        "title": "Interactive Lab Challenges & Implementation",
-        "subtitle": "Key Insights & Workflow Pitfalls",
+        "title": "Critical Implementation Pitfalls",
+        "subtitle": "What breaks goldens if the engine is slightly wrong",
         "bullets": [
-            "C1: C–AB fires over D–E due to tie-break (AB < D).",
-            "C2: Capacity=2 strands the run at 3 clusters (AB|C|DE).",
-            "C3: Golden cut edges are C–D (2) and C–E (1).",
-            "Pitfall: test capacity before ranking; keep a stable tie-break.",
+            "Myopic decisions: an attractive first merge can lock in a bad cut.",
+            "Capacity order: check capacity BEFORE ranking, never after.",
+            "Affinity updates: recompute and sum parallel edges after merge.",
+            "Deterministic tie-break: sort combined labels so tests stay stable.",
+            "If capacity blocks every pair, stop — do not invent a merge for K.",
         ],
-        "script": "Interactive Lab Track and Challenges. Challenge C1: C-A-B fires due to lexicographical tie-breaking. Challenge C2: Absorbing C into A-B violates capacity 2, leaving C with no legal partners. Challenge C3: Cut edges are C-D weight 2 and C-E weight 1. Critical Pitfalls: Greedy selection is myopic; check capacity before ranking and enforce deterministic tie-breaking.",
+        "script": "Critical Implementation Pitfalls. Greedy selection is myopic; an attractive first merge can lock the solver into a suboptimal global cut. Check capacity constraints before ranking pairs, never after. Recompute and sum parallel edge weights accurately after contraction. Enforce lexicographical sorting on combined labels so test outputs remain stable.",
     },
     {
         "type": "text",
@@ -143,9 +160,9 @@ slides_data = [
         "subtitle": "Key Takeaways for CAD & Graph Partitioning",
         "bullets": [
             "Fast bottom-up coarsening engine for CAD and mesh problems.",
-            "No backtracking: a local optimum may not be global.",
+            "No backtracking: a local optimum may not equal the global optimum.",
             "Capacity limits can prevent reaching target cluster count K.",
-            "Correct affinity updates and stable tie-breaks are required.",
+            "Correct affinity updates and a stable lex tie-break are required.",
         ],
         "script": "To summarize: Greedy pair-merge is a fast bottom-up graph coarsening clustering method. It works well for CAD and mesh problems. Remember its greedy limitation: no backtracking, local optimum may not equal global optimum. Capacity constraints may prevent reaching your target cluster number K. Correct affinity calculation and stable tie-breaks are critical for reproducible lab results.",
     },
@@ -169,18 +186,53 @@ def header(draw: ImageDraw.ImageDraw, title: str, subtitle: str) -> None:
     draw.text((100, 1020), "learn_clustering  —  03 greedy pair merge", font=font(FONT_REG, 20), fill=MUTED)
 
 
+def wrap_line(draw: ImageDraw.ImageDraw, text: str, fnt: ImageFont.FreeTypeFont, max_w: float) -> list[str]:
+    words = text.split()
+    lines: list[str] = []
+    cur = ""
+    for word in words:
+        trial = (cur + " " + word).strip()
+        if draw.textlength(trial, font=fnt) <= max_w:
+            cur = trial
+        else:
+            if cur:
+                lines.append(cur)
+            cur = word
+    if cur:
+        lines.append(cur)
+    return lines or [text]
+
+
 def create_text_slide(title: str, subtitle: str, bullets: list[str], filepath: Path) -> None:
     img = Image.new("RGB", (WIDTH, HEIGHT), BG)
     draw = ImageDraw.Draw(img)
     header(draw, title, subtitle)
     draw.rounded_rectangle([100, 220, 1820, 980], radius=24, fill=CARD)
-    y = 280
-    bullet_font = font(FONT_REG, 34)
+    y = 260
+    bullet_font = font(FONT_REG, 30)
+    step = 110 if len(bullets) > 4 else 130
     for item in bullets:
-        draw.ellipse([150, y + 12, 174, y + 36], fill=TEAL)
-        draw.text((210, y), item, font=bullet_font, fill=WHITE)
-        y += 130
+        draw.ellipse([150, y + 10, 172, y + 32], fill=TEAL)
+        lines = wrap_line(draw, item, bullet_font, 1580)
+        for line in lines:
+            draw.text((210, y), line, font=bullet_font, fill=WHITE)
+            y += 36
+        y += step - 36 * len(lines)
     img.save(filepath)
+
+
+def render_frames() -> list[Path]:
+    FRAMES.mkdir(parents=True, exist_ok=True)
+    pngs: list[Path] = []
+    for idx, slide in enumerate(slides_data, start=1):
+        png = FRAMES / f"slide{idx}.png"
+        if slide["type"] == "text":
+            create_text_slide(slide["title"], slide["subtitle"], slide["bullets"], png)
+        else:
+            create_graph_slide(slide["title"], slide["subtitle"], slide["step"], slide["facts"], png)
+        pngs.append(png)
+        print(f"frame {idx}/{len(slides_data)}: {slide['title']}")
+    return pngs
 
 
 def create_graph_slide(title: str, subtitle: str, step: int, facts: list[str], filepath: Path) -> None:
@@ -251,23 +303,17 @@ def write_pdf(images: list[Path], dest: Path) -> None:
 
 
 def slide_cues(audio_dur: float) -> list[tuple[float, float]]:
-    weights = [max(len(s["script"]), 1) for s in slides_data]
-    total = sum(weights)
-    t = 0.0
-    cues = []
-    for w in weights:
-        d = audio_dur * w / total
-        cues.append((t, t + d))
-        t += d
-    cues[-1] = (cues[-1][0], audio_dur)
-    return cues
+    if len(ANCHORS) != len(slides_data):
+        raise SystemExit(f"anchor/slide mismatch: {len(ANCHORS)} vs {len(slides_data)}")
+    ends = ANCHORS[1:] + [audio_dur]
+    return list(zip(ANCHORS, ends))
 
 
 def write_cue_sheet(cues: list[tuple[float, float]], dest: Path) -> None:
     lines = [
-        "# Synced cues: Natasha VO + greedy-pair-merge.html + video_generate_2",
-        f"# Voice: {VOICE.relative_to(ROOT)}  (TTSOL-en-AU-Natasha)",
-        f"# Duration: {cues[-1][1]:.2f}s  — split by script character length from video_generate_2",
+        "# Synced cues: Natasha 2026-10-21 + greedy-pair-merge.pdf + video_generate_2",
+        f"# Voice: {VOICE.relative_to(ROOT)}  (TTSOL-en-AU-Natasha-20261021-022533)",
+        f"# Duration: {cues[-1][1]:.2f}s  — 10 PDF pages snapped to ~1s pauses",
         "",
     ]
     for i, ((start, end), slide) in enumerate(zip(cues, slides_data), start=1):
@@ -276,51 +322,53 @@ def write_cue_sheet(cues: list[tuple[float, float]], dest: Path) -> None:
 
 
 def create_presentation() -> None:
-    if not VOICE.exists():
-        raise SystemExit(f"missing voiceover: {VOICE}")
+    import shutil
+    src = VOICE_SRC if VOICE_SRC.exists() else VOICE
+    if not src.exists():
+        raise SystemExit(f"missing voiceover: {src}")
     FRAMES.mkdir(parents=True, exist_ok=True)
     VIDEO_OUT.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(src, VOICE)
     audio_dur = float(AudioFileClip(str(VOICE)).duration)
     cues = slide_cues(audio_dur)
     write_cue_sheet(cues, CUES)
 
-    pngs: list[Path] = []
     print("Generating slide frames synced to Natasha voiceover...")
-    for idx, slide in enumerate(slides_data, start=1):
-        png = FRAMES / f"slide{idx}.png"
-        if slide["type"] == "text":
-            create_text_slide(slide["title"], slide["subtitle"], slide["bullets"], png)
-        else:
-            create_graph_slide(slide["title"], slide["subtitle"], slide["step"], slide["facts"], png)
-        pngs.append(png)
-        start, end = cues[idx - 1]
-        print(f"slide {idx}/{len(slides_data)}: {start:6.1f}-{end:6.1f}s  {slide['title']}")
-
+    pngs = render_frames()
+    for idx, (start, end) in enumerate(cues, start=1):
+        print(f"slide {idx}/{len(slides_data)}: {start:6.1f}-{end:6.1f}s  {slides_data[idx - 1]['title']}")
     write_pdf(pngs, PDF_OUT)
 
     with tempfile.TemporaryDirectory() as tmp:
-        listing = Path(tmp) / "list.txt"
-        rows = []
-        for png, (start, end) in zip(pngs, cues):
-            rows.append(f"file '{png}'\n")
-            rows.append(f"duration {end - start:.3f}\n")
-        rows.append(f"file '{pngs[-1]}'\n")
-        listing.write_text("".join(rows), encoding="utf-8")
+        tmp_path = Path(tmp)
+        parts = []
+        for idx, (png, (start, end)) in enumerate(zip(pngs, cues), start=1):
+            clip = tmp_path / f"c{idx}.mp4"
+            ff(
+                "-loop", "1",
+                "-i", str(png),
+                "-t", f"{end - start:.3f}",
+                "-c:v", "libx264",
+                "-tune", "stillimage",
+                "-preset", "veryfast",
+                "-pix_fmt", "yuv420p",
+                "-r", "24",
+                str(clip),
+            )
+            parts.append(clip)
+        listing = tmp_path / "list.txt"
+        listing.write_text("".join(f"file '{p}'\n" for p in parts), encoding="utf-8")
+        silent = tmp_path / "silent.mp4"
         print("Compiling MP4 with Natasha voiceover...")
+        ff("-f", "concat", "-safe", "0", "-i", str(listing), "-c", "copy", str(silent))
         ff(
-            "-f", "concat",
-            "-safe", "0",
-            "-i", str(listing),
+            "-i", str(silent),
             "-i", str(VOICE),
             "-map", "0:v:0",
             "-map", "1:a:0",
-            "-c:v", "libx264",
-            "-tune", "stillimage",
-            "-preset", "veryfast",
-            "-pix_fmt", "yuv420p",
+            "-c:v", "copy",
             "-c:a", "aac",
             "-t", f"{audio_dur:.3f}",
-            "-shortest",
             str(VIDEO_OUT),
         )
 
@@ -331,4 +379,9 @@ def create_presentation() -> None:
 
 if __name__ == "__main__":
     os.chdir(SLIDES_DIR)
-    create_presentation()
+    if "--pdf-only" in os.sys.argv:
+        pngs = render_frames()
+        write_pdf(pngs, PDF_OUT)
+        print(f"Updated slides PDF: {PDF_OUT}")
+    else:
+        create_presentation()

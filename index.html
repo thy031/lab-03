@@ -82,6 +82,8 @@
     }
     code { font-family: var(--mono); font-size: .9em; }
     .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 1.1rem 1.2rem; box-shadow: var(--shadow); margin: 1rem 0; }
+    .two { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    @media (max-width: 860px) { .two { grid-template-columns: 1fr; } }
     .split { display: grid; grid-template-columns: 1.05fr 1fr; gap: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
     .graph { padding: .6rem; background: #f8fafc; }
     .explain { padding: 1rem 1.15rem; background: var(--surface); }
@@ -122,7 +124,6 @@
     .match button.ok { border-color: #b7dfc6; background: var(--ok-bg); color: var(--ok); }
     .match button.bad { border-color: #ebc0c0; background: var(--err-bg); color: var(--err); }
     .match button:disabled { cursor: default; }
-    .choice-row { display: flex; flex-wrap: wrap; gap: .5rem; margin: .5rem 0 1rem; }
     .status-line { min-height: 1.4em; font-size: .92rem; font-weight: 600; }
     .status-line.ok { color: var(--ok); }
     .status-line.bad { color: var(--err); }
@@ -224,7 +225,7 @@
     <section class="video-panel" id="clip" aria-label="Lab video">
       <div class="video-wrap">
         <video controls preload="metadata" playsinline>
-          <source src="media/greedy_pair_merge_presentation.mp4" type="video/mp4">
+          <source src="media/greedy_pair_merge_presentation.mp4?v=20261021-0319" type="video/mp4">
         </video>
       </div>
     </section>
@@ -238,7 +239,7 @@
     </ol>
 
     <h2 id="tool">Browser tool</h2>
-    <p class="lead">Step heaviest-edge merges down to K clusters and watch cutsize. Load the starter, try the K and capacity presets, then work the challenges.</p>
+    <p class="lead">Step heaviest-edge merges down to K clusters and watch cutsize. Load the starter, then try the K and capacity presets.</p>
     <div class="controls">
       <button type="button" class="btn btn-primary" id="load-starter">Load starter</button>
       <label>K <input id="k-in" type="number" min="1" value="2"></label>
@@ -257,28 +258,6 @@
         <pre class="log" id="tool-log" style="background:#f1f5f9;color:#0f172a;min-height:12rem">Load the starter, then run.</pre>
       </div>
     </div>
-    <div class="card">
-      <h3>Challenges — tap an answer</h3>
-      <p><strong>C1.</strong> After merging A–B, two pairs sit at weight 5. Which merge fires?</p>
-      <div class="choice-row">
-        <button type="button" class="btn btn-secondary" data-chal="c1" data-ok="1">AB–C, lexicographic labels</button>
-        <button type="button" class="btn btn-secondary" data-chal="c1" data-ok="0">D–E, because it is an original edge</button>
-      </div>
-      <p class="status-line" id="chal-c1"></p>
-      <p><strong>C2.</strong> Capacity=2 and K=2. Why stop with three clusters?</p>
-      <div class="choice-row">
-        <button type="button" class="btn btn-secondary" data-chal="c2" data-ok="0">Greedy undoes A–B and still reaches K</button>
-        <button type="button" class="btn btn-secondary" data-chal="c2" data-ok="1">{A,B,C} is illegal; C has no legal partner</button>
-      </div>
-      <p class="status-line" id="chal-c2"></p>
-      <p><strong>C3.</strong> Unconstrained golden cut edges?</p>
-      <div class="choice-row">
-        <button type="button" class="btn btn-secondary" data-chal="c3" data-ok="1">C–D (2) and C–E (1)</button>
-        <button type="button" class="btn btn-secondary" data-chal="c3" data-ok="0">A–B and D–E</button>
-      </div>
-      <p class="status-line" id="chal-c3"></p>
-    </div>
-
     <h2 id="checklist">Your turn / exit ticket</h2>
     <div class="card check" id="checklist">
       <label><input type="checkbox"> Implement greedy pair merge end to end.</label>
@@ -301,17 +280,10 @@
       <a href="#games">Play the logic</a>
       <a href="#missions">Real-life missions</a>
     </nav>
-    <p class="lead">Match the two logic boards, then draw the remaining cut on each real-life graph. Click two nodes (or click a corridor) to draw a line; click again to erase. Check against the same <code>greedy_pair_merge</code> code.</p>
+    <p class="lead">Match ranking terms to their rules, then draw the remaining cut on each real-life graph. Click two nodes (or click a corridor) to draw a line; click again to erase. Check against the same <code>greedy_pair_merge</code> code.</p>
     <p class="xp" id="xp-line">Missions solved: 0 / 3</p>
 
     <h2 id="games">Play the logic</h2>
-    <div class="card">
-      <h3>Match: merge step → clusters and cutsize</h3>
-      <p>Click a step on the left, then the matching result on the right.</p>
-      <div class="match" id="match-steps"></div>
-      <p class="status-line" id="match-steps-status"></p>
-      <button type="button" class="btn btn-ghost" data-reset-match="steps">Reset this game</button>
-    </div>
     <div class="card">
       <h3>Match: ranking term → rule</h3>
       <p>Click a term, then its definition.</p>
@@ -329,7 +301,6 @@
     <nav class="toc" aria-label="Course notes">
       <a href="#rules">Rules</a>
       <a href="#walk">Walkthrough</a>
-      <a href="#capacity">Capacity</a>
       <a href="#implement">Implement</a>
       <a href="#pitfalls">Pitfalls</a>
     </nav>
@@ -359,33 +330,25 @@
       <tr><td><strong>All separate cutsize</strong></td><td class="num"><strong>18</strong></td></tr>
     </table>
 
-    <h2 id="walk">Walkthrough — every node starts alone</h2>
-    <p class="lead">Use the step buttons. Contracting affinity <code>w</code> drops cutsize by exactly <code>w</code>.</p>
+    <h2 id="walk">Walkthrough — unconstrained path, then the capacity fork</h2>
+    <p class="lead" id="capacity">Same <code>tiny_graph</code>. Contracting affinity <code>w</code> drops cutsize by <code>w</code>. Steps 1–5 are unconstrained K=2 (golden <code>ABC|DE</code> / 3). Step 6 restarts after A–B with capacity=2: size-3 {A,B,C} is illegal, so the path forks to <code>AB|C|DE</code> / 8.</p>
     <div class="controls">
       <button type="button" class="btn btn-secondary" data-walk="0">1 · Singletons</button>
       <button type="button" class="btn btn-secondary" data-walk="1">2 · Merge A–B</button>
       <button type="button" class="btn btn-secondary" data-walk="2">3 · Absorb C</button>
       <button type="button" class="btn btn-secondary" data-walk="3">4 · Merge D–E</button>
       <button type="button" class="btn btn-secondary" data-walk="4">5 · Cutsize 3</button>
+      <button type="button" class="btn btn-secondary" data-walk="5">6 · Capacity=2 fork</button>
     </div>
     <div id="walk-panel"></div>
     <table>
-      <tr><th>Step</th><th>Event</th><th class="num">Affinity</th><th>Clusters</th><th class="num">Cutsize</th></tr>
-      <tr><td>0</td><td>singletons</td><td class="num">—</td><td>A | B | C | D | E</td><td class="num">18</td></tr>
-      <tr><td>1</td><td>merge A–B</td><td class="num">5</td><td>AB | C | D | E</td><td class="num">13</td></tr>
-      <tr><td>2</td><td>merge AB–C</td><td class="num">5</td><td>ABC | D | E</td><td class="num">8</td></tr>
-      <tr><td>3</td><td>merge D–E</td><td class="num">5</td><td>ABC | DE</td><td class="num">3</td></tr>
-    </table>
-    <p><strong>Why step 2 is AB–C, not D–E:</strong> both pairs have affinity 5. Labels <code>AB</code>/<code>C</code> vs <code>D</code>/<code>E</code>; <code>AB &lt; D</code>, so AB–C wins. Final cut = C–D (2) + C–E (1) = <strong>3</strong>. Golden: <code>ABC|DE</code>.</p>
-
-    <h2 id="capacity">Capacity = 2 forks the path</h2>
-    <p>Same graph, same K=2, but a cluster may hold at most two cells. Size-3 {A,B,C} is illegal, so after A–B the 5-edge D–E fires. Then C has no legal partner and the run <strong>stops at three clusters</strong>.</p>
-    <table>
-      <tr><th>Preset</th><th>Parts</th><th class="num">Cutsize</th><th>Teaching point</th></tr>
-      <tr><td><code>--k 2</code></td><td>ABC|DE</td><td class="num">3</td><td>unconstrained golden</td></tr>
-      <tr><td><code>--k 3</code></td><td>ABC|D|E</td><td class="num">8</td><td>stop before D–E</td></tr>
-      <tr><td><code>--k 2 --capacity 2</code></td><td>AB|C|DE</td><td class="num">8</td><td>cap blocks the golden community</td></tr>
-      <tr><td><code>--k 2 --capacity 3</code></td><td>ABC|DE</td><td class="num">3</td><td>cap still allows {A,B,C}</td></tr>
+      <tr><th>Path</th><th>Preset</th><th>Event</th><th>Clusters</th><th class="num">Cutsize</th></tr>
+      <tr><td>Both</td><td>—</td><td>singletons</td><td>A | B | C | D | E</td><td class="num">18</td></tr>
+      <tr><td>Both</td><td>—</td><td>merge A–B @ 5</td><td>AB | C | D | E</td><td class="num">13</td></tr>
+      <tr><td>Unconstrained</td><td><code>--k 2</code></td><td>AB–C @ 5 (lex: AB &lt; D), then D–E @ 5</td><td>ABC | DE</td><td class="num">3</td></tr>
+      <tr><td>Stop early</td><td><code>--k 3</code></td><td>stop before D–E, still unconstrained</td><td>ABC | D | E</td><td class="num">8</td></tr>
+      <tr><td>Capacity fork</td><td><code>--k 2 --capacity 2</code></td><td>AB–C illegal; D–E @ 5; C stranded</td><td>AB | C | DE</td><td class="num">8</td></tr>
+      <tr><td>Cap still allows ABC</td><td><code>--k 2 --capacity 3</code></td><td>same as unconstrained golden</td><td>ABC | DE</td><td class="num">3</td></tr>
     </table>
 
     <h2 id="implement">Implement track</h2>
@@ -562,21 +525,24 @@ function draw(hot=[], dim=false, cut=[]) {
 }
 
 const WALKS = [
-  { title:"Every node starts alone", meta:"Step 1 / 5 · singletons",
+  { title:"Every node starts alone", meta:"Step 1 / 6 · singletons",
     html:"Agglomerative clustering begins with K=5 singletons. We repeatedly merge the highest-affinity legal pair until we hit target K.<ul><li>Target here: K=2</li><li>No capacity limit in the reference run</li><li>Priority = current edge-weight ranking</li></ul>",
     log:"K=5 → aim for K=2\ncutsize (all separate): 18", graph: () => draw() },
-  { title:"Merge 1: contract A–B", meta:"Step 2 / 5 · merge-ab",
+  { title:"Merge 1: contract A–B", meta:"Step 2 / 6 · merge-ab",
     html:"Heaviest edge is A–B at weight 5, so they merge first into a supernode. That protects the strongest connection immediately.<ul><li>Pick top legal pair on current graph</li><li>Contract into a cluster</li><li>Recompute edges to the new supernode</li></ul>",
     log:"merge: A–B @ 5 → C0\nclusters: AB | C | D | E\ncutsize: 13", graph: () => draw([["A","B"]]) },
-  { title:"Merge 2: absorb C into AB", meta:"Step 3 / 5 · absorb-c",
-    html:"After contraction, C connects to {A,B} with combined weight 5. That <strong>ties</strong> D–E; lexicographic labels merge C next, forming {A,B,C}.<ul><li>Supernode edges sum parallel connections (AC 1 + BC 4)</li><li>C joins the A–B community</li><li>Still two merges left toward K=2</li></ul>",
+  { title:"Merge 2: absorb C into AB", meta:"Step 3 / 6 · absorb-c",
+    html:"After contraction, C connects to {A,B} with combined weight 5. That <strong>ties</strong> D–E; lexicographic labels merge C next, forming {A,B,C}.<ul><li>Parallels add: AC 1 + BC 4 = 5</li><li>Why not D–E: both pairs are 5, but <code>AB &lt; D</code></li><li>Still two merges left toward K=2</li></ul>",
     log:"merge: C–AB @ 5\nclusters: ABC | D | E\ncutsize now: 8", graph: () => draw([["A","C"],["B","C"]]) },
-  { title:"Merge 3: contract D–E", meta:"Step 4 / 5 · merge-de",
+  { title:"Merge 3: contract D–E", meta:"Step 4 / 6 · merge-de",
     html:"Last merge joins D–E at weight 5. We now have exactly two clusters: {A,B,C} versus {D,E}.<ul><li>Reached target K=2</li><li>Heavy edges sit inside clusters</li><li>Only weak bridge edges remain cut</li></ul>",
     log:"merge: D–E @ 5\nclusters: ABC | DE\ncutsize: 3", graph: () => draw([["D","E"]], true) },
-  { title:"Result: cutsize 3", meta:"Step 5 / 5 · final-cut",
-    html:"Cut edges are C–D (2) and C–E (1). Greedy locked in the natural communities without backtracking — fast, but capacity rules can block this path.<ul><li>Golden: ABC|DE, cut=3</li><li>Capacity=2 would forbid size-3 {A,B,C}</li><li>Refinement labs repair worse seeds later</li></ul>",
-    log:"Final parts: ABC|DE\ncutsize = 2+1 = 3", graph: () => draw([], true, [["C","D"],["C","E"]]) }
+  { title:"Result: cutsize 3", meta:"Step 5 / 6 · unconstrained golden",
+    html:"Cut edges are C–D (2) and C–E (1). Greedy locked in the natural communities without backtracking.<ul><li>Golden: ABC|DE, cut=3</li><li>This path assumes no capacity limit</li><li>Step 6 shows the same graph with capacity=2</li></ul>",
+    log:"Final parts: ABC|DE\ncutsize = 2+1 = 3", graph: () => draw([], true, [["C","D"],["C","E"]]) },
+  { title:"Capacity = 2 forks the path", meta:"Step 6 / 6 · capacity fork",
+    html:"Replay from A–B with a cluster size cap of 2. {A,B,C} is illegal, so AB–C is skipped <em>before</em> ranking. D–E still fires. C has no legal partner, so the engine <strong>stops at three clusters</strong> — it will not invent a merge to hit K.<ul><li>Check capacity before ranking, not after</li><li>Stranded result: AB|C|DE, cut=8</li><li>Capacity=3 still allows {A,B,C}, so the golden path survives</li></ul>",
+    log:"merge: A–B @ 5\nmerge: D–E @ 5  (AB–C illegal)\nparts: AB | C | DE\ncutsize: 8  (stopped above K)", graph: () => drawParts([["A","B"],["C"],["D","E"]]) }
 ];
 
 function renderWalk(i) {
@@ -708,14 +674,6 @@ if (["#notes","#walk","#rules","#capacity","#implement","#pitfalls"].includes(lo
   showTab("lab");
 }
 
-document.querySelectorAll("[data-chal]").forEach(b => b.onclick = () => {
-  const id = b.dataset.chal;
-  const ok = b.dataset.ok === "1";
-  const s = document.getElementById("chal-"+id);
-  s.className = "status-line " + (ok ? "ok" : "bad");
-  s.textContent = ok ? "Correct." : "Try the other option.";
-});
-
 function shuffle(arr) {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
@@ -793,16 +751,6 @@ function mountMatch(el, pairs, statusEl) {
   paint();
   return paint;
 }
-const resetSteps = mountMatch(
-  document.getElementById("match-steps"),
-  [
-    { id:"s0", left:"Step 0 · singletons", right:"A | B | C | D | E · cut 18" },
-    { id:"s1", left:"Merge A–B @ 5", right:"AB | C | D | E · cut 13" },
-    { id:"s2", left:"Absorb C into AB", right:"ABC | D | E · cut 8" },
-    { id:"s3", left:"Merge D–E @ 5", right:"ABC | DE · cut 3" }
-  ],
-  document.getElementById("match-steps-status")
-);
 const resetRules = mountMatch(
   document.getElementById("match-rules"),
   [
@@ -813,7 +761,6 @@ const resetRules = mountMatch(
   ],
   document.getElementById("match-rules-status")
 );
-document.querySelector("[data-reset-match='steps']").onclick = resetSteps;
 document.querySelector("[data-reset-match='rules']").onclick = resetRules;
 
 const DONE_KEY = "eda-lab-done:learn_clustering:greedy-pair-merge";
@@ -1001,7 +948,7 @@ mountMissions();
 const SEARCH = [
   ["Video", "#clip"], ["Game", "#game"], ["Play the logic", "#games"], ["Missions", "#missions"],
   ["Tool", "#tool"], ["Quiz", "#quiz"],
-  ["Rules", "#rules"], ["Walkthrough", "#walk"], ["Capacity", "#capacity"],
+  ["Rules", "#rules"], ["Walkthrough", "#walk"], ["Capacity", "#walk"],
   ["Implement", "#implement"], ["Pitfalls", "#pitfalls"], ["Course notes", "#notes"]
 ];
 const sInput = document.getElementById("site-search-input");

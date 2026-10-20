@@ -88,6 +88,16 @@
     .n { font-size: 14px; font-weight: 700; fill: #fff; font-family: ui-sans-serif, system-ui, sans-serif; }
     ul.tight li { margin: .35rem 0; }
     .two { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2rem; }
+    .note {
+      margin-top: 1rem; padding: .85rem 1rem; border-radius: 10px;
+      background: #ecfdf5; border: 1px solid #99f6e4; color: #115e59;
+    }
+    .cards { display: grid; grid-template-columns: 1fr 1fr; gap: .85rem; }
+    .card {
+      border: 1px solid var(--line); border-radius: 10px; padding: .85rem 1rem; background: #f8fafc;
+    }
+    .card h3 { margin: 0 0 .35rem; font-size: 1.02rem; color: var(--teal-dark); }
+    .card p { margin: 0; font-size: .98rem; }
     @media (max-width: 860px) {
       .split, .two { grid-template-columns: 1fr; }
       .slide { padding: 1.3rem 1.1rem 2.4rem; }
@@ -116,41 +126,46 @@
 
     <section class="slide on" data-i="0" data-start="0">
       <h2>Greedy Pair-Merge: Background Theory</h2>
-      <p class="sub">Bottom-up agglomerative graph coarsening</p>
+      <p class="sub">Bottom-up agglomerative clustering and graph coarsening</p>
       <ul class="tight">
-        <li>Every node starts as its own individual cluster.</li>
-        <li>Purely greedy: no undo or backtracking once merged.</li>
-        <li>Selects the locally optimal legal pair in every iteration.</li>
-        <li>Widely used in CAD, mesh coarsening, and partitioning.</li>
+        <li>The simplest coarsening engine that still feels like CAD: every node starts as its own cluster.</li>
+        <li>Used in electronic CAD, mesh coarsening, and large-graph partitioning.</li>
+        <li>Purely greedy: once two clusters merge, there is no undo or backtracking.</li>
+        <li>Each iteration picks only the locally best legal pair — local optimum ≠ global optimum.</li>
       </ul>
-      <p>Local optimal choices do not guarantee a globally optimal partition. We repeatedly merge the most attractive legal pair, update the graph, and stop at target cluster count K.</p>
+      <p>We repeatedly merge the most attractive legal pair, update the graph, and stop when we reach target cluster count K.</p>
       <div class="foot">learn_clustering — 03 greedy pair merge</div>
     </section>
 
-    <section class="slide" data-i="1" data-start="59.68">
-      <h2>Engine Rules &amp; Selection Mechanics</h2>
-      <p class="sub">Pair ranking, affinity &amp; termination</p>
-      <div class="two">
-        <div>
-          <table>
-            <tr><th>Signal</th><th>Rule</th></tr>
-            <tr><td>Initialization</td><td>Singletons — every cell is its own cluster</td></tr>
-            <tr><td>Contraction</td><td>Highest-affinity legal pair merges into a supernode</td></tr>
-            <tr><td>Termination</td><td>Stop at K, or when no legal positive-weight pair remains</td></tr>
-            <tr><td>Affinity</td><td>Sum of current edge weights between two clusters</td></tr>
-            <tr><td>Illegal</td><td>Skip if affinity ≤ 0, or if size exceeds capacity</td></tr>
-            <tr><td>Tie-break</td><td>Lexicographic cluster labels (sorted member names)</td></tr>
-          </table>
-        </div>
-        <div>
-          <p>The algorithm will not invent fake merges to hit K if no valid pairs exist. After each merge, sort remaining cluster labels so later ties stay stable.</p>
-          <p>On <code>tiny_graph</code>, A–B vs D–E are both weight 5; A–B wins because <code>A &lt; D</code>. After that, AB–C vs D–E are both 5; <code>AB &lt; D</code> so C is absorbed first.</p>
-        </div>
-      </div>
+    <section class="slide" data-i="1" data-start="52">
+      <h2>Engine Rules &amp; Specification</h2>
+      <p class="sub">Initialization, contraction, termination, cutsize</p>
+      <table>
+        <tr><th>Rule</th><th>Specification</th></tr>
+        <tr><td>Initialization</td><td>Start from <strong>singletons</strong>: every cell is its own individual cluster.</td></tr>
+        <tr><td>Contraction</td><td>Repeatedly contract the <strong>highest-affinity legal pair</strong> into a supernode, then update the graph.</td></tr>
+        <tr><td>Termination</td><td>Stop at target <strong>K</strong>, or when no legal positive-weight pair remains.</td></tr>
+        <tr><td>Cutsize reporting</td><td>Report the final partition and cutsize: the <strong>sum of edge weights crossing cluster boundaries</strong>.</td></tr>
+      </table>
+      <p class="note"><strong>No fake merges.</strong> If no valid pair exists, the engine must stop — it will not invent a merge just to hit K.</p>
       <div class="foot">learn_clustering — 03 greedy pair merge</div>
     </section>
 
-    <section class="slide" data-i="2" data-start="114.57">
+    <section class="slide" data-i="2" data-start="89">
+      <h2>Pair Ranking &amp; Selection Rules</h2>
+      <p class="sub">Signal · rule · specification</p>
+      <table>
+        <tr><th>Signal</th><th>Rule</th><th>Specification</th></tr>
+        <tr><td>Affinity</td><td>Sum weights</td><td>Current edge weights between two clusters; parallel connections add (AC 1 + BC 4 → 5).</td></tr>
+        <tr><td>Illegal</td><td>Skip pair</td><td>Affinity ≤ 0, or combined size |A| + |B| exceeds the capacity limit.</td></tr>
+        <tr><td>Pick</td><td>Maximum affinity</td><td>Among remaining legal pairs, take the one with the largest affinity.</td></tr>
+        <tr><td>Tie-break</td><td>Lexicographic labels</td><td>Sort member names in each cluster and join them; pick the lexicographically smaller label (<code>A &lt; D</code>, <code>AB &lt; D</code>).</td></tr>
+      </table>
+      <p class="note">On <code>tiny_graph</code>, A–B and D–E both have weight 5; A–B wins because <code>A &lt; D</code>. After that, AB–C ties D–E at 5; <code>AB &lt; D</code> so C is absorbed first.</p>
+      <div class="foot">learn_clustering — 03 greedy pair merge</div>
+    </section>
+
+    <section class="slide" data-i="3" data-start="118">
       <h2>Step 1: Every Node Starts Alone</h2>
       <div class="panel">
         <div class="kicker">Greedy pair merge</div>
@@ -173,7 +188,7 @@
       <div class="foot">learn_clustering — 03 greedy pair merge</div>
     </section>
 
-    <section class="slide" data-i="3" data-start="137.15">
+    <section class="slide" data-i="4" data-start="133">
       <h2>Step 2: Merge 1 (Contract A–B)</h2>
       <div class="panel">
         <div class="kicker">Greedy pair merge</div>
@@ -196,7 +211,7 @@
       <div class="foot">learn_clustering — 03 greedy pair merge</div>
     </section>
 
-    <section class="slide" data-i="4" data-start="154.55">
+    <section class="slide" data-i="5" data-start="150">
       <h2>Step 3: Merge 2 (Absorb C into AB)</h2>
       <div class="panel">
         <div class="kicker">Greedy pair merge</div>
@@ -219,7 +234,7 @@
       <div class="foot">learn_clustering — 03 greedy pair merge</div>
     </section>
 
-    <section class="slide" data-i="5" data-start="179.11">
+    <section class="slide" data-i="6" data-start="170">
       <h2>Step 4: Merge 3 (Contract D–E)</h2>
       <div class="panel">
         <div class="kicker">Greedy pair merge</div>
@@ -242,7 +257,7 @@
       <div class="foot">learn_clustering — 03 greedy pair merge</div>
     </section>
 
-    <section class="slide" data-i="6" data-start="191.31">
+    <section class="slide" data-i="7" data-start="186">
       <h2>Step 5: Final Result &amp; Capacity Behavior</h2>
       <div class="panel">
         <div class="kicker">Greedy pair merge</div>
@@ -265,28 +280,39 @@
       <div class="foot">learn_clustering — 03 greedy pair merge</div>
     </section>
 
-    <section class="slide" data-i="7" data-start="213.31">
-      <h2>Interactive Lab Challenges &amp; Implementation</h2>
-      <p class="sub">Key insights &amp; workflow pitfalls</p>
-      <ul class="tight">
-        <li><strong>C1.</strong> C–AB fires over D–E because of the tie-break (AB &lt; D).</li>
-        <li><strong>C2.</strong> Capacity=2 strands the run at 3 clusters (AB|C|DE).</li>
-        <li><strong>C3.</strong> Cut edges in the golden solution are C–D (2) and C–E (1).</li>
-        <li><strong>Pitfall:</strong> test capacity <em>before</em> ranking, and enforce a deterministic tie-break.</li>
-      </ul>
-      <pre><code>python3 ../common/solvers.py examples/tiny_graph.json --k 2
-python3 ../common/solvers.py examples/tiny_graph.json --k 2 --capacity 2</code></pre>
+    <section class="slide" data-i="8" data-start="197">
+      <h2>Critical Implementation Pitfalls</h2>
+      <p class="sub">What breaks goldens if the engine is slightly wrong</p>
+      <div class="cards">
+        <div class="card">
+          <h3>Myopic decisions</h3>
+          <p>Greedy selection has no undo. An attractive first merge can lock the solver into a suboptimal global cut.</p>
+        </div>
+        <div class="card">
+          <h3>Capacity validation order</h3>
+          <p>Check capacity constraints <em>before</em> ranking pairs, never after you have already picked a winner.</p>
+        </div>
+        <div class="card">
+          <h3>Affinity updates</h3>
+          <p>After contraction, recompute and sum parallel edge weights accurately, or later clusters go silently wrong.</p>
+        </div>
+        <div class="card">
+          <h3>Deterministic tie-breaking</h3>
+          <p>Enforce lexicographic sorting on combined labels so AB–C vs D–E is stable and lab tests do not flake.</p>
+        </div>
+      </div>
+      <p class="note">If capacity blocks every remaining pair, stop. Do not invent a merge just to force target K.</p>
       <div class="foot">learn_clustering — 03 greedy pair merge</div>
     </section>
 
-    <section class="slide" data-i="8" data-start="243.48">
+    <section class="slide" data-i="9" data-start="232">
       <h2>Summary: Greedy Pair-Merge</h2>
       <p class="sub">Key takeaways for CAD &amp; graph partitioning</p>
       <ul class="tight">
         <li>Fast bottom-up coarsening engine for CAD and mesh problems.</li>
-        <li>Strict greedy limitation: no backtracking (local ≠ global optimum).</li>
-        <li>Capacity limits can prevent reaching target cluster count K.</li>
-        <li>Correct affinity updates and stable tie-breaks are required.</li>
+        <li>Greedy limitation: no backtracking, so a local optimum may not equal the global optimum.</li>
+        <li>Capacity constraints may prevent reaching target cluster count K — do not invent merges.</li>
+        <li>Correct affinity calculation and a stable lex tie-break are required for reproducible results.</li>
       </ul>
       <div class="foot">learn_clustering — 03 greedy pair merge</div>
     </section>
@@ -296,7 +322,7 @@ python3 ../common/solvers.py examples/tiny_graph.json --k 2 --capacity 2</code><
     <button type="button" id="prev">Prev</button>
     <button type="button" id="play">Play voiceover</button>
     <div class="dots" id="dots"></div>
-    <span id="pos">1 / 9</span>
+    <span id="pos">1 / 10</span>
     <span id="clock">0:00</span>
     <button type="button" id="next">Next</button>
   </div>
