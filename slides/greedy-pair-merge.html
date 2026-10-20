@@ -93,68 +93,78 @@
       .slide { padding: 1.3rem 1.1rem 2.4rem; }
       h1 { font-size: 1.8rem; } h2 { font-size: 1.5rem; }
     }
+    @media print {
+      html, body { height: auto; background: #fff; }
+      .bar { display: none !important; }
+      .deck, .stage { display: block; height: auto; padding: 0; }
+      .slide {
+        display: block !important;
+        box-shadow: none;
+        border-radius: 0;
+        width: 100%;
+        min-height: 0;
+        break-after: page;
+        page-break-after: always;
+      }
+      .slide:last-of-type { break-after: auto; page-break-after: auto; }
+    }
   </style>
 </head>
 <body>
 <div class="deck">
   <div class="stage">
 
-    <section class="slide on" data-i="0">
-      <div class="center">
-        <h1>Greedy pair merge</h1>
-        <p class="sub">The simplest coarsening engine that still feels like CAD</p>
-      </div>
-      <div class="foot">learn_clustering — 03 greedy pair merge</div>
-    </section>
-
-    <section class="slide" data-i="1">
-      <h2>What the coarsener must do</h2>
+    <section class="slide on" data-i="0" data-start="0">
+      <h2>Greedy Pair-Merge: Background Theory</h2>
+      <p class="sub">Bottom-up agglomerative graph coarsening</p>
       <ul class="tight">
-        <li>Start from <strong>singletons</strong> — every cell is its own cluster.</li>
-        <li>Repeatedly <strong>contract the highest-affinity legal pair</strong> into a supernode.</li>
-        <li>Stop at target <strong>K</strong>, or when no legal positive-weight pair remains.</li>
-        <li>Report the partition and its <strong>cutsize</strong> (weight still crossing clusters).</li>
+        <li>Every node starts as its own individual cluster.</li>
+        <li>Purely greedy: no undo or backtracking once merged.</li>
+        <li>Selects the locally optimal legal pair in every iteration.</li>
+        <li>Widely used in CAD, mesh coarsening, and partitioning.</li>
       </ul>
-      <p>There is no undo. Heavy nets should disappear from the cut; weak bridges may stay cut. Capacity (max cluster size) is optional, but when it is on it can block the unconstrained path.</p>
+      <p>Local optimal choices do not guarantee a globally optimal partition. We repeatedly merge the most attractive legal pair, update the graph, and stop at target cluster count K.</p>
       <div class="foot">learn_clustering — 03 greedy pair merge</div>
     </section>
 
-    <section class="slide" data-i="2">
-      <h2>Ranking rules (lock these)</h2>
+    <section class="slide" data-i="1" data-start="59.68">
+      <h2>Engine Rules &amp; Selection Mechanics</h2>
+      <p class="sub">Pair ranking, affinity &amp; termination</p>
       <div class="two">
         <div>
           <table>
             <tr><th>Signal</th><th>Rule</th></tr>
-            <tr><td>Affinity</td><td>Sum of current edge weight between two clusters (parallels add)</td></tr>
-            <tr><td>Illegal</td><td>Skip if affinity ≤ 0, or if <code>|A|+|B|</code> exceeds capacity</td></tr>
-            <tr><td>Pick</td><td>Maximum affinity</td></tr>
-            <tr><td>Tie-break</td><td>Lexicographic cluster labels (sorted member names joined)</td></tr>
-            <tr><td>Cutsize</td><td>Sum of weights with endpoints in different clusters</td></tr>
+            <tr><td>Initialization</td><td>Singletons — every cell is its own cluster</td></tr>
+            <tr><td>Contraction</td><td>Highest-affinity legal pair merges into a supernode</td></tr>
+            <tr><td>Termination</td><td>Stop at K, or when no legal positive-weight pair remains</td></tr>
+            <tr><td>Affinity</td><td>Sum of current edge weights between two clusters</td></tr>
+            <tr><td>Illegal</td><td>Skip if affinity ≤ 0, or if size exceeds capacity</td></tr>
+            <tr><td>Tie-break</td><td>Lexicographic cluster labels (sorted member names)</td></tr>
           </table>
         </div>
         <div>
-          <p>Label examples: <code>A</code>, <code>AB</code>, <code>ABC</code>. After each merge, sort remaining clusters by label so later ties stay stable.</p>
+          <p>The algorithm will not invent fake merges to hit K if no valid pairs exist. After each merge, sort remaining cluster labels so later ties stay stable.</p>
           <p>On <code>tiny_graph</code>, A–B vs D–E are both weight 5; A–B wins because <code>A &lt; D</code>. After that, AB–C vs D–E are both 5; <code>AB &lt; D</code> so C is absorbed first.</p>
         </div>
       </div>
       <div class="foot">learn_clustering — 03 greedy pair merge</div>
     </section>
 
-    <section class="slide" data-i="3">
-      <h2>Every node starts alone</h2>
+    <section class="slide" data-i="2" data-start="114.57">
+      <h2>Step 1: Every Node Starts Alone</h2>
       <div class="panel">
         <div class="kicker">Greedy pair merge</div>
-        <h3>Every node starts alone</h3>
+        <h3>K=5 singletons · target K=2 · initial cutsize 18</h3>
         <div class="meta">Step 1 / 5 · singletons · module01-03-greedy-pair-merge</div>
         <div class="split">
           <div class="graph" id="g0"></div>
           <div class="explain">
             <h4>Explanation</h4>
-            <p>Agglomerative clustering begins with K=5 singletons. We repeatedly merge the highest-affinity legal pair until we hit target K.</p>
+            <p>Agglomerative clustering begins with 5 singletons. Target K=2. Initial cutsize with all nodes separate is 18.</p>
             <ul>
-              <li>Target here: K=2</li>
-              <li>No capacity limit in the reference run</li>
-              <li>Priority = current edge-weight ranking</li>
+              <li>K=5 singletons · target K=2</li>
+              <li>Initial cutsize: 18</li>
+              <li>Heaviest initial edge: A–B weight 5</li>
             </ul>
             <div class="log">K=5 → aim for K=2<br>cutsize (all separate): 18</div>
           </div>
@@ -163,11 +173,11 @@
       <div class="foot">learn_clustering — 03 greedy pair merge</div>
     </section>
 
-    <section class="slide" data-i="4">
-      <h2>Merge 1: contract A–B</h2>
+    <section class="slide" data-i="3" data-start="137.15">
+      <h2>Step 2: Merge 1 (Contract A–B)</h2>
       <div class="panel">
         <div class="kicker">Greedy pair merge</div>
-        <h3>Merge 1: contract A–B</h3>
+        <h3>Clusters: AB | C | D | E · cutsize 13</h3>
         <div class="meta">Step 2 / 5 · merge-ab · module01-03-greedy-pair-merge</div>
         <div class="split">
           <div class="graph" id="g1"></div>
@@ -186,11 +196,11 @@
       <div class="foot">learn_clustering — 03 greedy pair merge</div>
     </section>
 
-    <section class="slide" data-i="5">
-      <h2>Merge 2: absorb C into AB</h2>
+    <section class="slide" data-i="4" data-start="154.55">
+      <h2>Step 3: Merge 2 (Absorb C into AB)</h2>
       <div class="panel">
         <div class="kicker">Greedy pair merge</div>
-        <h3>Merge 2: absorb C into AB</h3>
+        <h3>Clusters: ABC | D | E · cutsize 8</h3>
         <div class="meta">Step 3 / 5 · absorb-c · module01-03-greedy-pair-merge</div>
         <div class="split">
           <div class="graph" id="g2"></div>
@@ -209,11 +219,11 @@
       <div class="foot">learn_clustering — 03 greedy pair merge</div>
     </section>
 
-    <section class="slide" data-i="6">
-      <h2>Merge 3: contract D–E</h2>
+    <section class="slide" data-i="5" data-start="179.11">
+      <h2>Step 4: Merge 3 (Contract D–E)</h2>
       <div class="panel">
         <div class="kicker">Greedy pair merge</div>
-        <h3>Merge 3: contract D–E</h3>
+        <h3>Clusters: ABC | DE · cutsize 3 (target K=2 reached)</h3>
         <div class="meta">Step 4 / 5 · merge-de · module01-03-greedy-pair-merge</div>
         <div class="split">
           <div class="graph" id="g3"></div>
@@ -232,21 +242,21 @@
       <div class="foot">learn_clustering — 03 greedy pair merge</div>
     </section>
 
-    <section class="slide" data-i="7">
-      <h2>Result: cutsize 3</h2>
+    <section class="slide" data-i="6" data-start="191.31">
+      <h2>Step 5: Final Result &amp; Capacity Behavior</h2>
       <div class="panel">
         <div class="kicker">Greedy pair merge</div>
-        <h3>Result: cutsize 3</h3>
+        <h3>Final partition: ABC | DE · remaining cutsize: 3</h3>
         <div class="meta">Step 5 / 5 · final-cut · module01-03-greedy-pair-merge</div>
         <div class="split">
           <div class="graph" id="g4"></div>
           <div class="explain">
             <h4>Explanation</h4>
-            <p>Cut edges are C–D (2) and C–E (1). Greedy locked in the natural communities without backtracking — fast, but capacity rules can block this path.</p>
+            <p>Cut edges are C–D (2) and C–E (1). With capacity=2, size-3 ABC is blocked, so the run is stranded at three clusters AB | C | DE with cutsize 8.</p>
             <ul>
               <li>Golden: ABC|DE, cut=3</li>
-              <li>Capacity=2 would forbid size-3 {A,B,C}</li>
-              <li>Refinement labs repair worse seeds later</li>
+              <li>Capacity=2: AB|C|DE, cut=8</li>
+              <li>Do not invent a merge just to force K</li>
             </ul>
             <div class="log">Final parts: ABC|DE<br>cutsize = 2+1 = 3</div>
           </div>
@@ -255,79 +265,28 @@
       <div class="foot">learn_clustering — 03 greedy pair merge</div>
     </section>
 
-    <section class="slide" data-i="8">
-      <h2>Capacity = 2 forks the path</h2>
-      <p>Same graph, same K=2, but a cluster may hold at most two cells. Size-3 {A,B,C} is illegal, so after A–B the 5-edge D–E fires. Then C has no legal partner and the run <strong>stops at three clusters</strong>.</p>
-      <table>
-        <tr><th>Preset</th><th>Parts</th><th class="num">Cutsize</th><th>Note</th></tr>
-        <tr><td><code>--k 2</code></td><td>ABC|DE</td><td class="num">3</td><td>unconstrained golden</td></tr>
-        <tr><td><code>--k 3</code></td><td>ABC|D|E</td><td class="num">8</td><td>stop before D–E</td></tr>
-        <tr><td><code>--k 2 --capacity 2</code></td><td>AB|C|DE</td><td class="num">8</td><td>cap blocks the golden community</td></tr>
-        <tr><td><code>--k 2 --capacity 3</code></td><td>ABC|DE</td><td class="num">3</td><td>cap still allows {A,B,C}</td></tr>
-      </table>
-      <div class="foot">learn_clustering — 03 greedy pair merge</div>
-    </section>
-
-    <section class="slide" data-i="9">
-      <h2>Browser lab track</h2>
+    <section class="slide" data-i="7" data-start="213.31">
+      <h2>Interactive Lab Challenges &amp; Implementation</h2>
+      <p class="sub">Key insights &amp; workflow pitfalls</p>
       <ul class="tight">
-        <li>In the browser lab, load the starter, try the K and capacity presets, and run greedy merge.</li>
-        <li>Work the challenges:
-          <ul>
-            <li><strong>C1.</strong> After A–B, two pairs sit at weight 5. Which merge fires, and which rule decides it?</li>
-            <li><strong>C2.</strong> With capacity=2 and K=2, why does the run stop with three clusters?</li>
-            <li><strong>C3.</strong> Name the two cut edges in the unconstrained golden (weights 2 and 1).</li>
-          </ul>
-        </li>
+        <li><strong>C1.</strong> C–AB fires over D–E because of the tie-break (AB &lt; D).</li>
+        <li><strong>C2.</strong> Capacity=2 strands the run at 3 clusters (AB|C|DE).</li>
+        <li><strong>C3.</strong> Cut edges in the golden solution are C–D (2) and C–E (1).</li>
+        <li><strong>Pitfall:</strong> test capacity <em>before</em> ranking, and enforce a deterministic tie-break.</li>
       </ul>
-      <div class="foot">learn_clustering — 03 greedy pair merge</div>
-    </section>
-
-    <section class="slide" data-i="10">
-      <h2>Implement track</h2>
-      <ul class="tight">
-        <li>Run the reference greedy merge down to two clusters.</li>
-        <li>You should land on A–B–C versus D–E with cutsize three.</li>
-        <li>Re-implement contraction yourself and keep a deterministic tie-break so golden tests stay <strong>reproducible</strong>.</li>
-        <li>Also run <code>--capacity 2</code> and confirm the stranded result <code>AB|C|DE</code> / cut 8 — do not invent a merge to force K.</li>
-      </ul>
-      <div class="foot">learn_clustering — 03 greedy pair merge</div>
-    </section>
-
-    <section class="slide" data-i="11">
-      <h2>Implement track — try these</h2>
-      <pre><code># pwd — print working directory
-pwd
-
-# ls examples — confirm tiny_graph.json is present
-ls examples
-
-# greedy merge to K=2 via reference solver
-export PYTHONPATH=../common
-python3 ../common/solvers.py examples/tiny_graph.json --k 2
-
-# capacity fork (expect AB|C|DE, cutsize 8)
+      <pre><code>python3 ../common/solvers.py examples/tiny_graph.json --k 2
 python3 ../common/solvers.py examples/tiny_graph.json --k 2 --capacity 2</code></pre>
       <div class="foot">learn_clustering — 03 greedy pair merge</div>
     </section>
 
-    <section class="slide" data-i="12">
-      <h2>Pitfalls to watch</h2>
+    <section class="slide" data-i="8" data-start="243.48">
+      <h2>Summary: Greedy Pair-Merge</h2>
+      <p class="sub">Key takeaways for CAD &amp; graph partitioning</p>
       <ul class="tight">
-        <li>Greedy is myopic: a great first merge can strand you with a bad global cut.</li>
-        <li>Watch illegal merges that violate a size cap — test capacity <em>before</em> ranking, not after.</li>
-        <li>Updating affinities incorrectly after contraction creates silent wrong clusters until <strong>goldens fail</strong>.</li>
-        <li>A missing lexicographic tie-break makes AB–C versus D–E a coin flip, so <code>tiny_graph</code> tests flake.</li>
-      </ul>
-      <div class="foot">learn_clustering — 03 greedy pair merge</div>
-    </section>
-
-    <section class="slide" data-i="13">
-      <h2>Your turn</h2>
-      <ul class="tight">
-        <li>Implement greedy pair merge end to end, hit a chosen K, and record cutsize at every merge.</li>
-        <li>Match unconstrained golden <code>ABC|DE</code> / 3 and report the capacity=2 result <code>AB|C|DE</code> / 8.</li>
-        <li>Complete the checklist and quiz (see <code>lab3plan.md</code>).</li>
+        <li>Fast bottom-up coarsening engine for CAD and mesh problems.</li>
+        <li>Strict greedy limitation: no backtracking (local ≠ global optimum).</li>
+        <li>Capacity limits can prevent reaching target cluster count K.</li>
+        <li>Correct affinity updates and stable tie-breaks are required.</li>
       </ul>
       <div class="foot">learn_clustering — 03 greedy pair merge</div>
     </section>
@@ -335,10 +294,13 @@ python3 ../common/solvers.py examples/tiny_graph.json --k 2 --capacity 2</code><
   </div>
   <div class="bar">
     <button type="button" id="prev">Prev</button>
+    <button type="button" id="play">Play voiceover</button>
     <div class="dots" id="dots"></div>
-    <span id="pos">1 / 14</span>
+    <span id="pos">1 / 9</span>
+    <span id="clock">0:00</span>
     <button type="button" id="next">Next</button>
   </div>
+  <audio id="vo" preload="auto" src="../media/natasha.mp3"></audio>
 </div>
 <script>
 const pos = { A:[90,70], B:[250,58], C:[170,150], E:[90,250], D:[270,240] };
@@ -383,29 +345,64 @@ document.getElementById("g4").innerHTML = svg(
 
 const slides = [...document.querySelectorAll(".slide")];
 const dots = document.getElementById("dots");
+const vo = document.getElementById("vo");
+const playBtn = document.getElementById("play");
+const CUES = slides.map((s) => Number(s.dataset.start) || 0);
 let i = 0;
+let seeking = false;
 slides.forEach((_, idx) => {
   const b = document.createElement("button");
   b.type = "button";
   b.setAttribute("aria-label", "Slide " + (idx+1));
-  b.addEventListener("click", () => show(idx));
+  b.addEventListener("click", () => show(idx, true));
   dots.appendChild(b);
 });
-function show(n) {
+function fmt(t) {
+  t = Math.max(0, Math.floor(t || 0));
+  return Math.floor(t / 60) + ":" + String(t % 60).padStart(2, "0");
+}
+function slideAt(t) {
+  let n = 0;
+  for (let k = 0; k < CUES.length; k++) if (t + 0.04 >= CUES[k]) n = k;
+  return n;
+}
+function show(n, seek) {
   i = (n + slides.length) % slides.length;
   slides.forEach((s, k) => s.classList.toggle("on", k === i));
   [...dots.children].forEach((d, k) => d.classList.toggle("cur", k === i));
   document.getElementById("pos").textContent = (i+1) + " / " + slides.length;
+  if (seek && vo) {
+    seeking = true;
+    vo.currentTime = CUES[i] + 0.02;
+    seeking = false;
+  }
 }
-document.getElementById("prev").onclick = () => show(i-1);
-document.getElementById("next").onclick = () => show(i+1);
-document.addEventListener("keydown", (e) => {
-  if (e.key === "ArrowRight" || e.key === "PageDown" || e.key === " ") { e.preventDefault(); show(i+1); }
-  if (e.key === "ArrowLeft" || e.key === "PageUp") { e.preventDefault(); show(i-1); }
-  if (e.key === "Home") show(0);
-  if (e.key === "End") show(slides.length-1);
+function syncPlayLabel() {
+  playBtn.textContent = vo && !vo.paused ? "Pause" : "Play voiceover";
+}
+playBtn.onclick = () => {
+  if (vo.paused) vo.play(); else vo.pause();
+};
+vo.addEventListener("play", syncPlayLabel);
+vo.addEventListener("pause", syncPlayLabel);
+vo.addEventListener("timeupdate", () => {
+  document.getElementById("clock").textContent = fmt(vo.currentTime);
+  if (seeking) return;
+  const n = slideAt(vo.currentTime);
+  if (n !== i) show(n, false);
 });
-show(0);
+document.getElementById("prev").onclick = () => show(i-1, true);
+document.getElementById("next").onclick = () => show(i+1, true);
+document.addEventListener("keydown", (e) => {
+  if (e.key === " ") { e.preventDefault(); if (vo.paused) vo.play(); else vo.pause(); }
+  if (e.key === "ArrowRight" || e.key === "PageDown") { e.preventDefault(); show(i+1, true); }
+  if (e.key === "ArrowLeft" || e.key === "PageUp") { e.preventDefault(); show(i-1, true); }
+  if (e.key === "Home") show(0, true);
+  if (e.key === "End") show(slides.length-1, true);
+});
+const start = new URLSearchParams(location.search).get("s");
+if (start !== null) document.querySelector(".bar")?.style.setProperty("display", "none");
+show(start === null ? 0 : Number(start), false);
 </script>
 </body>
 </html>

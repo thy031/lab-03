@@ -1,0 +1,7 @@
+#!/usr/bin/env python3
+"""Wrapper: rebuild media/greedy_pair_merge_presentation.mp4 from media/video.mp4."""
+
+from pathlib import Path
+import runpy
+
+runpy.run_path(str(Path(__file__).resolve().parent / "slides" / "create_presentation_video.py"), run_name="__main__")

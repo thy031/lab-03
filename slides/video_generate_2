@@ -1,0 +1,334 @@
+#!/usr/bin/env python3
+"""Render 9 narrated slides (moviepy 2.x / ffmpeg) and rewrite greedy-pair-merge.pdf."""
+
+from __future__ import annotations
+
+import os
+import subprocess
+import tempfile
+from pathlib import Path
+
+from imageio_ffmpeg import get_ffmpeg_exe
+from moviepy import AudioFileClip
+from PIL import Image, ImageDraw, ImageFont
+
+ROOT = Path(__file__).resolve().parent.parent
+SLIDES_DIR = ROOT / "slides"
+FRAMES = SLIDES_DIR / "video_frames"
+PDF_OUT = SLIDES_DIR / "greedy-pair-merge.pdf"
+VIDEO_OUT = ROOT / "media" / "greedy_pair_merge_presentation.mp4"
+VOICE = ROOT / "media" / "natasha.mp3"
+CUES = SLIDES_DIR / "new dlies"
+FFMPEG = get_ffmpeg_exe()
+
+WIDTH, HEIGHT = 1920, 1080
+BG = (15, 23, 42)
+CARD = (30, 41, 59)
+WHITE = (248, 250, 252)
+MUTED = (148, 163, 184)
+TEAL = (13, 148, 136)
+ORANGE = (234, 88, 12)
+BLUE = (2, 132, 199)
+SLATE = (51, 65, 85)
+
+FONT_REG = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+FONT_BOLD = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+
+slides_data = [
+    {
+        "type": "text",
+        "title": "Greedy Pair-Merge: Background Theory",
+        "subtitle": "Bottom-up Agglomerative Graph Coarsening",
+        "bullets": [
+            "Every node starts as its own individual cluster.",
+            "Purely greedy: no undo or backtracking once merged.",
+            "Selects the locally optimal legal pair in every iteration.",
+            "Widely used in CAD, mesh coarsening, and partitioning.",
+        ],
+        "script": "Welcome. Today we introduce Greedy Pair-Merge, a bottom-up agglomerative clustering and graph coarsening algorithm. Greedy pair-merge is the simplest coarsening engine that still feels like CAD. It follows bottom-up agglomerative logic: every node starts as its own cluster. This algorithm is heavily used in electronic CAD, mesh coarsening, and large graph partitioning. Important property: it is purely greedy. Once two clusters merge, there is no undo or backtracking. We only select the locally best legal pair in every iteration. Local optimal choices do not guarantee a globally optimal partition. We repeatedly merge the most attractive legal pair, update the graph, and stop when we reach our target cluster count K.",
+    },
+    {
+        "type": "text",
+        "title": "Engine Rules & Selection Mechanics",
+        "subtitle": "Pair Ranking, Affinity & Termination",
+        "bullets": [
+            "Initialization: singletons (every cell alone).",
+            "Contraction: highest-affinity legal pair merges.",
+            "Termination: reach K, or no positive legal pair remains.",
+            "Affinity: sum of edge weights between clusters.",
+            "Tie-break: lexicographical ordering of sorted labels.",
+        ],
+        "script": "Engine Rules and Specification. Initialization: Starts from singletons where every cell is its own individual cluster. Contraction: Repeatedly contracts the highest-affinity legal pair into a supernode. Termination: Stops when reaching target K or when no legal positive-weight pair remains. Notice: the algorithm will not invent fake merges to hit K if no valid pairs exist. Cutsize Reporting: Reports final partition and cutsize. Pair Ranking and Selection Rules: Affinity sums current edge weights between two clusters. Skip if affinity is less than or equal to 0, or if size exceeds capacity limit. Choose maximum affinity pair with lexicographical tie-breaking.",
+    },
+    {
+        "type": "graph",
+        "title": "Step 1: Every Node Starts Alone",
+        "subtitle": "K=5 Singletons | Target K=2 | Initial Cutsize: 18",
+        "step": 1,
+        "facts": [
+            "Begin with 5 singletons.",
+            "Target K equals 2.",
+            "All-separate cutsize is 18.",
+            "Heaviest edge is A–B at weight 5.",
+        ],
+        "script": "Step 1: Every Node Starts Alone. Agglomerative clustering begins with 5 singletons. Our target is K equals 2, and the initial cutsize with all nodes separate is 18. Looking at the initial graph, edge A-B has weight 5, which is the maximum affinity edge on the initial graph.",
+    },
+    {
+        "type": "graph",
+        "title": "Step 2: Merge 1 (Contract A-B)",
+        "subtitle": "Clusters: AB | C | D | E | Cutsize: 13",
+        "step": 2,
+        "facts": [
+            "Merge A–B at weight 5.",
+            "Protect the strongest connection first.",
+            "Recompute edges into supernode AB.",
+            "Clusters: AB | C | D | E, cutsize 13.",
+        ],
+        "script": "Step 2: Merge 1, Contract A-B. The heaviest edge is A-B at weight 5, so they merge first into a supernode, protecting the strongest connection immediately. We then recompute connections to the new supernode A-B.",
+    },
+    {
+        "type": "graph",
+        "title": "Step 3: Merge 2 (Absorb C into AB)",
+        "subtitle": "Clusters: ABC | D | E | Cutsize: 8",
+        "step": 3,
+        "facts": [
+            "C–AB affinity is 1 + 4 = 5.",
+            "That ties D–E at weight 5.",
+            "Lexicographic rule: AB < D, so C merges.",
+            "Clusters: ABC | D | E, cutsize 8.",
+        ],
+        "script": "Step 3: Merge 2, Absorb C into A-B. After contraction, C connects to A-B with a combined weight of 5, one plus four, which ties D-E. Alphabetical tie-breaking chooses C-A-B next because A-B is less than D, forming cluster A-B-C. When affinity weights tie, lexicographical ordering resolves the tie.",
+    },
+    {
+        "type": "graph",
+        "title": "Step 4: Merge 3 (Contract D-E)",
+        "subtitle": "Clusters: ABC | DE | Cutsize: 3 (Target K=2 Reached)",
+        "step": 4,
+        "facts": [
+            "Last merge: D–E at weight 5.",
+            "Two clusters: ABC versus DE.",
+            "Target K=2 is reached.",
+            "Only weak bridges remain on the cut.",
+        ],
+        "script": "Step 4: Merge 3, Contract D-E. The last merge joins D-E at weight 5. We now have exactly two clusters: A-B-C versus D-E, reaching target K equals 2.",
+    },
+    {
+        "type": "graph",
+        "title": "Step 5: Final Result & Capacity Behavior",
+        "subtitle": "Final Partition: ABC | DE | Remaining Cutsize: 3",
+        "step": 5,
+        "facts": [
+            "Cut edges: C–D weight 2, C–E weight 1.",
+            "Unconstrained golden: ABC|DE, cut 3.",
+            "Capacity=2 blocks size-3 ABC.",
+            "Cap-2 result: AB|C|DE, cutsize 8.",
+        ],
+        "script": "Step 5: Final Result and Capacity Fork. The remaining cut edges are C-D with weight 2 and C-E with weight 1, yielding a final cutsize of 3. With capacity equal to 2, size 3 A-B-C is blocked, leaving the algorithm stranded at three clusters A-B, C, D-E with cutsize 8.",
+    },
+    {
+        "type": "text",
+        "title": "Interactive Lab Challenges & Implementation",
+        "subtitle": "Key Insights & Workflow Pitfalls",
+        "bullets": [
+            "C1: C–AB fires over D–E due to tie-break (AB < D).",
+            "C2: Capacity=2 strands the run at 3 clusters (AB|C|DE).",
+            "C3: Golden cut edges are C–D (2) and C–E (1).",
+            "Pitfall: test capacity before ranking; keep a stable tie-break.",
+        ],
+        "script": "Interactive Lab Track and Challenges. Challenge C1: C-A-B fires due to lexicographical tie-breaking. Challenge C2: Absorbing C into A-B violates capacity 2, leaving C with no legal partners. Challenge C3: Cut edges are C-D weight 2 and C-E weight 1. Critical Pitfalls: Greedy selection is myopic; check capacity before ranking and enforce deterministic tie-breaking.",
+    },
+    {
+        "type": "text",
+        "title": "Summary: Greedy Pair-Merge",
+        "subtitle": "Key Takeaways for CAD & Graph Partitioning",
+        "bullets": [
+            "Fast bottom-up coarsening engine for CAD and mesh problems.",
+            "No backtracking: a local optimum may not be global.",
+            "Capacity limits can prevent reaching target cluster count K.",
+            "Correct affinity updates and stable tie-breaks are required.",
+        ],
+        "script": "To summarize: Greedy pair-merge is a fast bottom-up graph coarsening clustering method. It works well for CAD and mesh problems. Remember its greedy limitation: no backtracking, local optimum may not equal global optimum. Capacity constraints may prevent reaching your target cluster number K. Correct affinity calculation and stable tie-breaks are critical for reproducible lab results.",
+    },
+]
+
+
+def font(path: str, size: int) -> ImageFont.FreeTypeFont:
+    return ImageFont.truetype(path, size)
+
+
+def ff(*args: str) -> None:
+    r = subprocess.run([FFMPEG, "-y", *args], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+    if r.returncode != 0:
+        raise RuntimeError(r.stderr[-2000:])
+
+
+def header(draw: ImageDraw.ImageDraw, title: str, subtitle: str) -> None:
+    draw.rectangle([0, 0, WIDTH, 12], fill=TEAL)
+    draw.text((100, 70), title, font=font(FONT_BOLD, 48), fill=WHITE)
+    draw.text((100, 140), subtitle, font=font(FONT_REG, 28), fill=TEAL)
+    draw.text((100, 1020), "learn_clustering  —  03 greedy pair merge", font=font(FONT_REG, 20), fill=MUTED)
+
+
+def create_text_slide(title: str, subtitle: str, bullets: list[str], filepath: Path) -> None:
+    img = Image.new("RGB", (WIDTH, HEIGHT), BG)
+    draw = ImageDraw.Draw(img)
+    header(draw, title, subtitle)
+    draw.rounded_rectangle([100, 220, 1820, 980], radius=24, fill=CARD)
+    y = 280
+    bullet_font = font(FONT_REG, 34)
+    for item in bullets:
+        draw.ellipse([150, y + 12, 174, y + 36], fill=TEAL)
+        draw.text((210, y), item, font=bullet_font, fill=WHITE)
+        y += 130
+    img.save(filepath)
+
+
+def create_graph_slide(title: str, subtitle: str, step: int, facts: list[str], filepath: Path) -> None:
+    img = Image.new("RGB", (WIDTH, HEIGHT), BG)
+    draw = ImageDraw.Draw(img)
+    header(draw, title, subtitle)
+    draw.rounded_rectangle([80, 210, 1080, 990], radius=24, fill=CARD)
+    draw.rounded_rectangle([1120, 210, 1840, 990], radius=24, fill=CARD)
+
+    pos = {
+        "A": (280, 340),
+        "B": (860, 320),
+        "C": (560, 560),
+        "E": (300, 820),
+        "D": (860, 800),
+    }
+    edges = [("A", "B", "5"), ("A", "C", "1"), ("B", "C", "4"), ("C", "D", "2"), ("C", "E", "1"), ("D", "E", "5")]
+    node_colors = {
+        1: {n: TEAL for n in pos},
+        2: {"A": ORANGE, "B": ORANGE, "C": TEAL, "D": BLUE, "E": BLUE},
+        3: {"A": TEAL, "B": TEAL, "C": TEAL, "D": BLUE, "E": BLUE},
+        4: {"A": TEAL, "B": TEAL, "C": TEAL, "D": ORANGE, "E": ORANGE},
+        5: {"A": TEAL, "B": TEAL, "C": TEAL, "D": BLUE, "E": BLUE},
+    }[step]
+    hot = {1: {("A", "B")}, 2: {("A", "B")}, 3: {("A", "C"), ("B", "C")}, 4: {("D", "E")}, 5: {("C", "D"), ("C", "E")}}[step]
+    dim = {1: set(), 2: set(), 3: {("A", "B")}, 4: {("A", "B"), ("A", "C"), ("B", "C")}, 5: {("A", "B"), ("A", "C"), ("B", "C"), ("D", "E")}}[step]
+
+    def undirected(a: str, b: str) -> tuple[str, str]:
+        return (a, b) if a < b else (b, a)
+
+    for u, v, w in edges:
+        x1, y1 = pos[u]
+        x2, y2 = pos[v]
+        key = undirected(u, v)
+        if key in hot:
+            color, width = ORANGE, 10
+        elif key in dim:
+            color, width = (71, 85, 105), 5
+        else:
+            color, width = MUTED, 7
+        draw.line([(x1, y1), (x2, y2)], fill=color, width=width)
+        mx, my = (x1 + x2) // 2, (y1 + y2) // 2
+        draw.rounded_rectangle([mx + 8, my - 28, mx + 52, my + 8], radius=8, fill=SLATE)
+        draw.text((mx + 16, my - 24), w, font=font(FONT_BOLD, 22), fill=WHITE)
+
+    for name, (x, y) in pos.items():
+        r = 48
+        draw.ellipse([x - r, y - r, x + r, y + r], fill=node_colors[name])
+        tw = draw.textlength(name, font=font(FONT_BOLD, 32))
+        draw.text((x - tw / 2, y - 18), name, font=font(FONT_BOLD, 32), fill=WHITE)
+
+    y = 270
+    draw.text((1180, y), "Walkthrough", font=font(FONT_BOLD, 30), fill=TEAL)
+    y = 340
+    for fact in facts:
+        draw.ellipse([1180, y + 14, 1200, y + 34], fill=TEAL)
+        draw.text((1220, y), fact, font=font(FONT_REG, 28), fill=WHITE)
+        y += 90
+
+    img.save(filepath)
+
+
+def write_pdf(images: list[Path], dest: Path) -> None:
+    pages = [Image.open(p).convert("RGB") for p in images]
+    pages[0].save(dest, save_all=True, append_images=pages[1:], resolution=150.0)
+    for page in pages:
+        page.close()
+
+
+def slide_cues(audio_dur: float) -> list[tuple[float, float]]:
+    weights = [max(len(s["script"]), 1) for s in slides_data]
+    total = sum(weights)
+    t = 0.0
+    cues = []
+    for w in weights:
+        d = audio_dur * w / total
+        cues.append((t, t + d))
+        t += d
+    cues[-1] = (cues[-1][0], audio_dur)
+    return cues
+
+
+def write_cue_sheet(cues: list[tuple[float, float]], dest: Path) -> None:
+    lines = [
+        "# Synced cues: Natasha VO + greedy-pair-merge.html + video_generate_2",
+        f"# Voice: {VOICE.relative_to(ROOT)}  (TTSOL-en-AU-Natasha)",
+        f"# Duration: {cues[-1][1]:.2f}s  — split by script character length from video_generate_2",
+        "",
+    ]
+    for i, ((start, end), slide) in enumerate(zip(cues, slides_data), start=1):
+        lines.append(f"{i}\t{start:.2f}\t{end:.2f}\t{slide['title']}")
+    dest.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def create_presentation() -> None:
+    if not VOICE.exists():
+        raise SystemExit(f"missing voiceover: {VOICE}")
+    FRAMES.mkdir(parents=True, exist_ok=True)
+    VIDEO_OUT.parent.mkdir(parents=True, exist_ok=True)
+    audio_dur = float(AudioFileClip(str(VOICE)).duration)
+    cues = slide_cues(audio_dur)
+    write_cue_sheet(cues, CUES)
+
+    pngs: list[Path] = []
+    print("Generating slide frames synced to Natasha voiceover...")
+    for idx, slide in enumerate(slides_data, start=1):
+        png = FRAMES / f"slide{idx}.png"
+        if slide["type"] == "text":
+            create_text_slide(slide["title"], slide["subtitle"], slide["bullets"], png)
+        else:
+            create_graph_slide(slide["title"], slide["subtitle"], slide["step"], slide["facts"], png)
+        pngs.append(png)
+        start, end = cues[idx - 1]
+        print(f"slide {idx}/{len(slides_data)}: {start:6.1f}-{end:6.1f}s  {slide['title']}")
+
+    write_pdf(pngs, PDF_OUT)
+
+    with tempfile.TemporaryDirectory() as tmp:
+        listing = Path(tmp) / "list.txt"
+        rows = []
+        for png, (start, end) in zip(pngs, cues):
+            rows.append(f"file '{png}'\n")
+            rows.append(f"duration {end - start:.3f}\n")
+        rows.append(f"file '{pngs[-1]}'\n")
+        listing.write_text("".join(rows), encoding="utf-8")
+        print("Compiling MP4 with Natasha voiceover...")
+        ff(
+            "-f", "concat",
+            "-safe", "0",
+            "-i", str(listing),
+            "-i", str(VOICE),
+            "-map", "0:v:0",
+            "-map", "1:a:0",
+            "-c:v", "libx264",
+            "-tune", "stillimage",
+            "-preset", "veryfast",
+            "-pix_fmt", "yuv420p",
+            "-c:a", "aac",
+            "-t", f"{audio_dur:.3f}",
+            "-shortest",
+            str(VIDEO_OUT),
+        )
+
+    print(f"\nSuccess! Presentation video: {VIDEO_OUT}")
+    print(f"Updated slides PDF: {PDF_OUT}")
+    print(f"Cue sheet: {CUES}")
+
+
+if __name__ == "__main__":
+    os.chdir(SLIDES_DIR)
+    create_presentation()

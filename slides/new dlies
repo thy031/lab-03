@@ -1,0 +1,13 @@
+# Synced cues: Natasha VO + greedy-pair-merge.html + video_generate_2
+# Voice: media/natasha.mp3  (TTSOL-en-AU-Natasha)
+# Duration: 275.38s  — split by script character length from video_generate_2
+
+1	0.00	59.68	Greedy Pair-Merge: Background Theory
+2	59.68	114.57	Engine Rules & Selection Mechanics
+3	114.57	137.15	Step 1: Every Node Starts Alone
+4	137.15	154.55	Step 2: Merge 1 (Contract A-B)
+5	154.55	179.11	Step 3: Merge 2 (Absorb C into AB)
+6	179.11	191.31	Step 4: Merge 3 (Contract D-E)
+7	191.31	213.31	Step 5: Final Result & Capacity Behavior
+8	213.31	243.48	Interactive Lab Challenges & Implementation
+9	243.48	275.38	Summary: Greedy Pair-Merge
